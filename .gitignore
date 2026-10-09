@@ -1,0 +1,9 @@
+/build/
+/dist/
+*.zip
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+.DS_Store
