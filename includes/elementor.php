@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 final class EWP_Elementor {
     public static function fields(): array {
-        return ['name'=>'Title','summary'=>'Summary','description'=>'Description','date'=>'Date and time','timezone'=>'Timezone','category'=>'Category','channel_name'=>'Channel name','price_label'=>'Price',
+        return ['name'=>'Title','summary'=>'Summary','description'=>'Description','date'=>'Date and time','timezone'=>'Timezone','category'=>'Category','channel_name'=>'Channel name','channel_short_description'=>'Channel short description','channel_description'=>'Channel description','channel_accent_color'=>'Channel accent color','price_label'=>'Price',
             'location.venue'=>'Venue','location.address'=>'Address','location.city'=>'City','location.state'=>'State','location.country'=>'Country','location.postal'=>'Postal code','type'=>'Channel type',
             'local_url'=>'WordPress detail URL','channel_url'=>'WordPress channel URL','canonical_url'=>'Standalone URL','website'=>'Channel website','image'=>'Image URL','header_image'=>'Channel header image URL'];
     }
@@ -15,13 +15,14 @@ final class EWP_Elementor {
         add_action('elementor/dynamic_tags/register', function ($manager) {
             $manager->register_group('eventwillow',['title'=>'EventWillow']);
             $manager->register(new EWP_Text_Tag()); $manager->register(new EWP_Image_Tag());
+            $manager->register(new EWP_Channel_Color_Tag());
         });
     }
     public static function dateFormat(array $settings): string {
         return ($settings['date_format'] ?? '') === 'custom' ? (string) ($settings['custom_date_format'] ?? '') : (string) ($settings['date_format'] ?? '');
     }
     public static function recordControls($element): void {
-        $element->add_control('record_kind',['label'=>'Preview record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $element->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $element->add_control('field',['label'=>'Field','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'name','options'=>self::fields()]);
         $element->add_control('date_format',['label'=>'Date format','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'','options'=>[''=>'Default (date, time and timezone)','F j, Y'=>'October 10, 2026','D, M j'=>'Sat, Oct 10','g:i a'=>'6:00 pm','M j · g:i a'=>'Oct 10 · 6:00 pm','Y-m-d'=>'2026-10-10','custom'=>'Custom'],'condition'=>['field'=>'date']]);
         $element->add_control('custom_date_format',['label'=>'Custom date format','type'=>\Elementor\Controls_Manager::TEXT,'placeholder'=>'F j, Y · g:i a','description'=>'Uses PHP date format characters and the event timezone. For example F j, Y or g:i a.','condition'=>['field'=>'date','date_format'=>'custom']]);
@@ -131,7 +132,7 @@ class EWP_Field_Widget extends EWP_Base_Widget {
         $this->end_controls_section(); $this->styleControls();
     }
     protected function render(): void {
-        $s=$this->get_settings_for_display(); $item=EWP_Views::$context ?? EWP_Views::preview($s['record_kind']);
+        $s=$this->get_settings_for_display(); $item=EWP_Views::preview($s['record_kind']);
         $tag=in_array($s['html_tag'],['div','p','h1','h2','h3','h4','span'],true)?$s['html_tag']:'div';
         echo '<'.$tag.' class="ewp-field">'.nl2br(esc_html(EWP_Views::value($s['custom_key'] ?: $s['field'],$item,EWP_Elementor::dateFormat($s)))).'</'.$tag.'>';
     }
@@ -140,7 +141,7 @@ class EWP_Card_Image_Widget extends EWP_Base_Widget {
     public function get_name(){return 'ewp-card-image';}public function get_title(){return 'EventWillow Card Image';}public function get_icon(){return 'eicon-image';}
     protected function register_controls(): void {
         $this->start_controls_section('content',['label'=>'Image']);
-        $this->add_control('record_kind',['label'=>'Preview type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $this->add_control('field',['label'=>'Image','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'image','options'=>['image'=>'Main image / flyer','header_image'=>'Channel header']]);
         $this->add_control('link_image',['label'=>'Link to WordPress details','type'=>\Elementor\Controls_Manager::SWITCHER,'default'=>'yes']);
         $this->end_controls_section();
@@ -160,7 +161,7 @@ class EWP_Card_Button_Widget extends EWP_Base_Widget {
     public function get_name(){return 'ewp-card-button';}public function get_title(){return 'EventWillow Card Button';}public function get_icon(){return 'eicon-button';}
     protected function register_controls(): void {
         $this->start_controls_section('content',['label'=>'Button']);
-        $this->add_control('record_kind',['label'=>'Preview type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $this->add_control('text',['label'=>'Button text','type'=>\Elementor\Controls_Manager::TEXT,'default'=>'View details']);
         $this->end_controls_section();$this->styleControls();
         $this->start_controls_section('button_style',['label'=>'Button colors','tab'=>\Elementor\Controls_Manager::TAB_STYLE]);
@@ -177,7 +178,7 @@ class EWP_Actions_Widget extends EWP_Base_Widget {
     public function get_name(){return 'ewp-actions';} public function get_title(){return 'EventWillow Actions';}
     protected function register_controls(): void {
         $this->start_controls_section('content',['label'=>'Actions']);
-        $this->add_control('record_kind',['label'=>'Preview type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $this->add_control('action_type',['label'=>'Action','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'','options'=>[''=>'All available','view'=>'Standalone event','tickets'=>'Tickets','rsvp'=>'RSVP','external'=>'Registration','follow'=>'Follow','channel'=>'Standalone channel']]);
         foreach (['view'=>'Standalone event label','tickets'=>'Tickets label','rsvp'=>'RSVP label','external'=>'Registration label','follow'=>'Follow label','channel'=>'Standalone channel label'] as $type=>$label) {
             $this->add_control('label_'.$type,['label'=>$label,'type'=>\Elementor\Controls_Manager::TEXT,'default'=>'','description'=>'Leave blank to use the event or channel default.','condition'=>['action_type'=>['',$type]]]);
@@ -185,7 +186,7 @@ class EWP_Actions_Widget extends EWP_Base_Widget {
         $this->end_controls_section(); $this->styleControls();
     }
     protected function render(): void {
-        $s=$this->get_settings_for_display(); $item=EWP_Views::$context ?? EWP_Views::preview($s['record_kind']);
+        $s=$this->get_settings_for_display(); $item=EWP_Views::preview($s['record_kind']);
         if (!$item) return;
         if ($s['action_type']) $item['actions']=array_values(array_filter($item['actions'],fn($a)=>$a['type']===$s['action_type']));
         $labels=[];
@@ -197,10 +198,10 @@ class EWP_Details_Widget extends EWP_Base_Widget {
     public function get_name(){return 'ewp-details';} public function get_title(){return 'EventWillow Details';}
     protected function register_controls(): void {
         $this->start_controls_section('content',['label'=>'Details']);
-        $this->add_control('record_kind',['label'=>'Preview type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $this->end_controls_section(); $this->styleControls();
     }
-    protected function render(): void { $s=$this->get_settings_for_display(); $item=EWP_Views::$context ?? EWP_Views::preview($s['record_kind']); if ($item) echo EWP_Views::detail($item,$s['record_kind']); }
+    protected function render(): void { $s=$this->get_settings_for_display(); $item=EWP_Views::preview($s['record_kind']); if ($item) echo EWP_Views::detail($item,$s['record_kind']); }
 }
 class EWP_Filters_Widget extends EWP_Base_Widget {
     public function get_name(){return 'ewp-filters';} public function get_title(){return 'EventWillow Filters';}
@@ -219,21 +220,34 @@ class EWP_Text_Tag extends \Elementor\Core\DynamicTags\Tag {
     public function get_name(){return 'ewp-text';} public function get_title(){return 'EventWillow Field';} public function get_group(){return 'eventwillow';}
     public function get_categories(){return [\Elementor\Modules\DynamicTags\Module::TEXT_CATEGORY,\Elementor\Modules\DynamicTags\Module::URL_CATEGORY];}
     protected function register_controls(): void { EWP_Elementor::recordControls($this); }
-    public function render(): void { $s=$this->get_settings(); echo esc_html(EWP_Views::value($s['custom_key'] ?: $s['field'],EWP_Views::$context ?? EWP_Views::preview($s['record_kind']),EWP_Elementor::dateFormat($s))); }
+    public function render(): void { $s=$this->get_settings(); echo esc_html(EWP_Views::value($s['custom_key'] ?: $s['field'],EWP_Views::preview($s['record_kind']),EWP_Elementor::dateFormat($s))); }
 }
 class EWP_Image_Tag extends \Elementor\Core\DynamicTags\Data_Tag {
     public function get_name(){return 'ewp-image';} public function get_title(){return 'EventWillow Image';} public function get_group(){return 'eventwillow';}
     public function get_categories(){return [\Elementor\Modules\DynamicTags\Module::IMAGE_CATEGORY];}
     protected function register_controls(): void {
-        $this->add_control('record_kind',['label'=>'Preview type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'event','options'=>['event'=>'Event','channel'=>'Channel']]);
         $this->add_control('field',['label'=>'Image','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'image','options'=>['image'=>'Main image','header_image'=>'Channel header']]);
     }
     public function get_value(array $options=[]){
-        $s=$this->get_settings();$url=EWP_Views::value($s['field'],EWP_Views::$context ?? EWP_Views::preview($s['record_kind']));
+        $s=$this->get_settings();$url=EWP_Views::value($s['field'],EWP_Views::preview($s['record_kind']));
         // An empty dynamic CSS value is omitted by Elementor. Explicitly clear cached
         // background images with a transparent image, without affecting Image widgets.
         if ($url === '' && EWP_Views::$renderingRecordStyles) $url='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22%3E%3C/svg%3E';
         return ['id'=>0,'url'=>$url];
+    }
+}
+
+class EWP_Channel_Color_Tag extends \Elementor\Core\DynamicTags\Data_Tag {
+    public function get_name(){return 'ewp-channel-color';}
+    public function get_title(){return 'EventWillow Channel Accent Color';}
+    public function get_group(){return 'eventwillow';}
+    public function get_categories(){return [\Elementor\Modules\DynamicTags\Module::COLOR_CATEGORY];}
+    protected function register_controls(): void {
+        $this->add_control('record_kind',['label'=>'Record type','type'=>\Elementor\Controls_Manager::SELECT,'default'=>'channel','options'=>['event'=>'Event','channel'=>'Channel']]);
+    }
+    public function get_value(array $options=[]): string {
+        return sanitize_hex_color(EWP_Views::value('channel_accent_color',EWP_Views::preview($this->get_settings('record_kind')))) ?: '';
     }
 }
 

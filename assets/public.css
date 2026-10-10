@@ -5,3 +5,14 @@
 .ewp .ewp-advanced-close,.ewp .ewp-advanced-open{background:transparent;color:var(--ewp-panel-text,var(--ewp-text));border:1px solid currentColor}.ewp .ewp-panel-header h2{color:inherit}.ewp .ewp-panel-fields input,.ewp .ewp-panel-fields select{background:transparent;color:inherit}
 .ewp-card-default{display:flex;flex-direction:column}.ewp-card-default .ewp-card-image{display:block;width:var(--ewp-image-width,100%);flex-shrink:0}.ewp-card-default .ewp-card-content{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}.ewp-card-default .ewp-card-content>h3,.ewp-card-default .ewp-card-content>p{margin:0}.ewp-card-default .ewp-card-more{margin-top:auto;text-align:center;padding:10px 16px;border:0;border-radius:5px;background:var(--ewp-accent);color:#fff;align-self:flex-start}.ewp-card-default .ewp-card-more:hover{filter:brightness(.95)}.ewp-list .ewp-card-default{display:flex;flex-direction:row;--ewp-image-width:35%}@media(max-width:540px){.ewp-list .ewp-card-default{flex-direction:column;--ewp-image-width:100%}}
 .ewp-component-image{display:block;width:100%;height:auto;object-fit:contain}
+
+/* Pass the grid row height through Elementor's custom-template wrappers. */
+.ewp-card-custom { display: flex; flex-direction: column; }
+.ewp-card-custom > .elementor,
+.ewp-card-custom > [data-ewp-template-instance] > .elementor {
+  display: flex; flex-direction: column; flex: 1; min-width: 0;
+}
+.ewp-card-custom > .elementor > .e-con,
+.ewp-card-custom > [data-ewp-template-instance] > .elementor > .e-con {
+  flex-grow: 1;
+}

@@ -64,7 +64,12 @@ final class EWP_Views {
         finally { self::$context = $previous; unset(self::$rendering[$id]); }
     }
     public static function preview(string $kind = 'event'): ?array {
-        if (self::$context) return self::$context;
+        if (self::$context) {
+            // Channel fields on an event use its public association, never an editor fixture.
+            return $kind === 'channel' && !isset(self::$context['identifier'])
+                ? (self::$context['channels'][0] ?? [])
+                : self::$context;
+        }
         if (!current_user_can('edit_posts')) return null;
         $s = EWP_API::settings(); $endpoint = $kind === 'event' ? 'events' : 'channels';
         $id = $s['preview_'.$kind];
@@ -73,6 +78,13 @@ final class EWP_Views {
     }
     public static function value(string $field, ?array $item = null, string $dateFormat = ''): string {
         $item ??= self::$context ?? [];
+        if (!$item) return '';
+        $channelFields = ['channel_short_description'=>'summary','channel_description'=>'description','channel_accent_color'=>'accent_color','type'=>'type'];
+        if (isset($channelFields[$field])) {
+            $channel = isset($item['identifier']) ? $item : ($item['channels'][0] ?? []);
+            $value = $channel[$channelFields[$field]] ?? '';
+            return is_scalar($value) ? (string) $value : '';
+        }
         if ($field === 'channel_url') {
             $channel = isset($item['identifier']) ? $item : ($item['channels'][0] ?? null);
             return is_array($channel) && !empty($channel['id']) ? self::url($channel, 'channel') : '';

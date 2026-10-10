@@ -18,6 +18,8 @@ Select event and channel detail templates and reusable card templates in plugin 
 
 Elementor widgets include event feeds, event/channel directories, channel events, calendar, search, filters, fields, card image/button, actions, details and related channels. Dynamic tags work in native text, image and link controls. Fields include channel names and WordPress channel URLs. Dates support presets and custom PHP formats in the event timezone. Actions expose per-action label overrides; blank labels keep the API defaults.
 
+Channel short description, channel description, channel type and channel accent color resolve from the current channel, or the first associated channel when used on an event. Generic Summary/Description still refer to the current record. Select Channel as the record type to use channel data in both the editor and the live page. On an event page this uses the first associated public channel, including its image, website and standalone URL. If the event has no public channel, channel fields stay empty. Event remains the default for existing controls; a standalone channel page always uses its current channel. The EventWillow Channel Accent Color dynamic tag is available in Elementor color controls; the text field exposes the same hex value. Accent colors require the updated Laravel serializer, which adds `accent_color` to channel details and event channel associations.
+
 Select **Built-in configurable card** for image position, section visibility, spacing and color controls, or edit a reusable Elementor card template directly. Modern Elementor atomic template styles load alongside traditional styles. Record-dependent local styles are scoped to each card, so dynamic image backgrounds are not shared across events. Image fallbacks are resolved by Laravel from eligible public channel profiles.
 
 Directories use `/events/` and `/channels/`; detail routes include stable IDs and descriptive slugs. Existing pages at directory paths take precedence: add a listing widget or shortcode there. Occurrence dates survive event links. Browsing stays in WordPress; tickets, RSVP, registration and follow actions open the native Laravel page.
@@ -44,7 +46,11 @@ A successful run publishes a GitHub Release with the ZIP, manifest and checksum,
 - `plugins/eventwillow-public/eventwillow-public-X.Y.Z.zip` (versioned, immutable cache)
 - `plugins/eventwillow-public/info.json` (latest metadata, revalidated)
 
-The public base is `https://files.arcanetechct.com/eventwillow-public/`. The manifest downloads the versioned ZIP. Retrying an older release does not replace a newer latest manifest/package. R2 publication does not deploy or activate the plugin on WordPress, and this plugin does not yet include a WordPress automatic-update client.
+The public base is `https://files.arcanetechct.com/eventwillow-public/`. The manifest downloads the versioned ZIP. Retrying an older release does not replace a newer latest manifest/package. R2 publication does not deploy or activate the plugin on WordPress.
+
+The built-in update checker follows ATS Dashboard's small manifest-based updater. WordPress shows newer R2 releases on its normal Plugins and Updates screens, including the version-details popup. Successful manifest checks are cached for six hours; failed checks retry after fifteen minutes. Dashboard → Updates → Check again clears this cache. Checks also work during cron and WP-CLI runs. Updates use the standard WordPress installer and its auto-update preference; automatic installation is not enabled by the plugin. The app API key is never sent to the update server.
+
+To disable update checks, define `EW_UPDATES_ENABLED` as `false` in private `wp-config.php`. Forks can override `EW_UPDATE_MANIFEST_URL` there. The existing installation needs one manual ZIP update to receive the checker; subsequent releases can be installed through WordPress.
 
 The package includes only runtime PHP, assets and templates, plus an optional readme/license. It excludes tests, local setup helpers, credentials, workflows, build scripts and Git files. GitHub CI validates PHP syntax and builds the same package on pushes and pull requests.
 
