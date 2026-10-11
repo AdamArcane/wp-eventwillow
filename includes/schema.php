@@ -58,10 +58,11 @@ function ew_lab_register_custom_fields() {
         'auth_callback'=>fn($allowed,$key,$id)=>current_user_can('edit_post',$id)]);
 }
 add_action('init','ew_lab_register_custom_fields',11);
-add_action('rest_after_insert_ew_lab_event',function($post,$request){
-    $meta=$request->get_param('meta');
-    if (!is_array($meta) || !array_key_exists('ew_custom_fields_json',$meta)) return;
-    $fields=json_decode(get_post_meta($post->ID,'ew_custom_fields_json',true),true);
+/** Rebuild public custom fields after either REST or internal imports.
+ * Call only when the import supplies ew_custom_fields_json; omission preserves fields.
+ */
+function eventwillow_sync_project_custom_fields($post_id) {
+    $fields=json_decode(get_post_meta($post_id,'ew_custom_fields_json',true),true);
     if (!is_array($fields)) return;
     $registry=get_option('ew_lab_public_fields',[]);
     $before=$registry;$map=[];
@@ -72,15 +73,20 @@ add_action('rest_after_insert_ew_lab_event',function($post,$request){
         $values=array_map(fn($value)=>wp_strip_all_tags((string)$value),array_filter($field['values'],'is_scalar'));
         $map[$source_key]=['key'=>$key,'label'=>$label];
         $registry[$key]=['source_key'=>$source_key,'label'=>$label];
-        update_post_meta($post->ID,$key,wp_slash(implode(', ',$values)));
+        update_post_meta($post_id,$key,wp_slash(implode(', ',$values)));
     }
     // Clear previously synced fields when removed, made private, or renamed upstream.
-    foreach (array_keys(get_post_meta($post->ID)) as $key) {
-        if (preg_match('/^ew_custom_.*_[a-f0-9]{12}$/D',$key) && !in_array($key,array_column($map,'key'),true)) delete_post_meta($post->ID,$key);
+    foreach (array_keys(get_post_meta($post_id)) as $key) {
+        if (preg_match('/^ew_custom_.*_[a-f0-9]{12}$/D',$key) && !in_array($key,array_column($map,'key'),true)) delete_post_meta($post_id,$key);
     }
-    update_post_meta($post->ID,'ew_custom_fields_map_json',wp_slash(wp_json_encode($map,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)));
-    update_post_meta($post->ID,'ew_custom_fields_version',1);
+    update_post_meta($post_id,'ew_custom_fields_map_json',wp_slash(wp_json_encode($map,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)));
+    update_post_meta($post_id,'ew_custom_fields_version',1);
     if($registry!==$before)update_option('ew_lab_public_fields',$registry,false);
+}
+add_action('rest_after_insert_ew_lab_event',function($post,$request){
+    $meta=$request->get_param('meta');
+    if (!is_array($meta) || !array_key_exists('ew_custom_fields_json',$meta)) return;
+    eventwillow_sync_project_custom_fields($post->ID);
 },10,2);
 // Populate the native selector even while editing a template rather than an event post.
 add_action('elementor/element/after_section_end',function($element,$section){

@@ -1,0 +1,64 @@
+<?php
+/** Run with wp eval-file on a disposable/local WordPress installation. No real API calls. */
+if (!defined('WP_CLI') || !WP_CLI) exit;
+if (get_option(EventWillow_Sync::STATE)) WP_CLI::error('Finish or cancel the current sync before testing.');
+$options=['eventwillow_sync_settings','eventwillow_sync_key','eventwillow_sync_status','ew_lab_public_fields'];
+$saved=[];
+foreach ($options as $o) $saved[$o]=get_option($o,null);
+$assert=function($ok,$label){ if (!$ok) throw new RuntimeException($label); WP_CLI::log('PASS '.$label); };
+$settings=['url'=>'https://example.org/api/eventwillow/v1','channels'=>['sync-test'],'interval'=>'hourly','enabled'=>false,'days'=>30,'adopt'=>false];
+$channel=['id'=>'sync-test-channel','identifier'=>'sync-test','name'=>'Sync test channel','timezone'=>'UTC'];
+$date=current_datetime()->format('Y-m-d');
+$event=['id'=>'sync-test-event','key'=>'sync-test-event:'.$date,'occurrence_date'=>$date,'name'=>'Sync test event','timezone'=>'UTC',
+    'starts_at'=>$date.'T20:00:00Z','ends_at'=>$date.'T21:00:00Z','channels'=>[$channel],
+    'custom_fields'=>['field_012345abcdef'=>['label'=>'Public test','values'=>['First']]]];
+$mode='normal';
+$http=function($pre,$args,$url) use (&$mode,&$event,$channel) {
+    if (!str_starts_with($url,'https://example.org/api/eventwillow/v1/')) return $pre;
+    if ($mode==='failure') return new WP_Error('test','Simulated network failure');
+    parse_str(wp_parse_url($url,PHP_URL_QUERY)??'',$query);
+    $events=str_contains($url,'/events?');
+    $data=$events?($mode==='empty'?[]:[$event]):[$channel];
+    $meta=['api_version'=>'1','generated_at'=>gmdate('c'),'total'=>count($data),'page'=>1,'last_page'=>1];
+    if ($events) $meta+=['mode'=>'occurrences','from'=>$query['from'],'to'=>$query['to']];
+    if ($mode==='incomplete' && $events) $meta['total']=2;
+    return ['response'=>['code'=>200],'headers'=>[],'body'=>wp_json_encode(['data'=>$data,'meta'=>$meta])];
+};
+$run=function(){
+    EventWillow_Sync::start();
+    for ($i=0;$i<30 && get_option(EventWillow_Sync::STATE);$i++) EventWillow_Sync::step();
+    if (get_option(EventWillow_Sync::STATE)) throw new RuntimeException('Test job did not finish.');
+    return get_option('eventwillow_sync_status');
+};
+$ids=[];
+try {
+    update_option('eventwillow_sync_settings',$settings,false); update_option('eventwillow_sync_key','test-key',false);
+    add_filter('pre_http_request',$http,10,3);
+    $r=$run(); $assert($r['status']==='success' && $r['counts']['created']===2,'complete snapshot creates channels and events');
+    $importer=new EventWillow_Sync_Importer($settings);
+    $ids=get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
+    $event_id=0; foreach ($ids as $id) if (get_post_type($id)==='ew_lab_event') $event_id=$id;
+    $field=ew_lab_custom_key('field_012345abcdef','Public test');
+    $assert(get_post_meta($event_id,$field,true)==='First','internal import projects individual public fields');
+    $r=$run(); $assert($r['counts']['unchanged']===2 && $r['counts']['created']===0,'repeat import preserves IDs and skips unchanged posts');
+    $event['custom_fields']=(object)[]; $run();
+    $assert(!metadata_exists('post',$event_id,$field),'removed public fields are cleared');
+    $mode='failure'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','failed fetch exhausts retries without withdrawing content');
+    $mode='incomplete'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','incomplete pagination never triggers withdrawal');
+    $future=wp_insert_post(['post_type'=>'ew_lab_event','post_status'=>'publish','post_title'=>'Future sync test']); $ids[]=$future;
+    update_post_meta($future,'_eventwillow_scope',$importer->scope); update_post_meta($future,'ew_source_key','future-test'); update_post_meta($future,'ew_occurrence_date',current_datetime()->modify('+100 days')->format('Y-m-d'));
+    $mode='empty'; $r=$run(); $assert($r['status']==='success' && get_post_status($event_id)==='draft','complete empty snapshot drafts missing managed occurrences');
+    $assert(get_post_status($future)==='publish','future records outside the window are retained');
+    EventWillow_Sync::start(); $first=get_option(EventWillow_Sync::STATE); EventWillow_Sync::start();
+    $assert(get_option(EventWillow_Sync::STATE)===$first,'overlapping starts retain the active job');
+    EventWillow_Sync::stop(); $assert(!get_option(EventWillow_Sync::STATE) && !wp_next_scheduled(EventWillow_Sync::STEP),'cancellation removes the job and continuation');
+    WP_CLI::success('Sync integration checks passed.');
+} finally {
+    remove_filter('pre_http_request',$http,10);
+    EventWillow_Sync::stop();
+    foreach ($ids as $id) wp_delete_post($id,true);
+    // Catch partially created fixtures if an earlier assertion failed.
+    foreach (get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>['publish','draft'],'fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_source','meta_value'=>hash('sha256',$settings['url'])]) as $id) wp_delete_post($id,true);
+    foreach ($saved as $o=>$v) { if ($v===null) delete_option($o); else update_option($o,$v,false); }
+    EventWillow_Sync::schedule();
+}

@@ -35,7 +35,7 @@ manifest = dict(name='EventWillow Sync', slug='eventwillow-sync', version=versio
     download_url=opts.base_url.rstrip('/') + '/' + archive.name,
     homepage='https://eventwillow.com', author='Arcane Tech Solutions', requires='6.5', requires_php='8.0',
     sections={'description':'Native WordPress events and channels for one-way synchronization.',
-              'changelog':'0.1.0: Standalone plugin packaging, native fields, separated event/channel dynamic tags, formatted dates, Atomic backgrounds and self-hosted updates.'},
+              'changelog':'0.1.6: Adds scheduled EventWillow API synchronization, import management and public custom-field projection.'},
     sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
 (output / 'info.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print(archive)
