@@ -1,75 +1,42 @@
-name: Release to R2
+name: Release
 on:
   push:
     tags: ['v*.*.*']
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Release current version, or bump the version first'
-        required: true
-        default: none
-        type: choice
-        options: [none, patch, minor, major]
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: eventwillow-release
+  group: eventwillow-sync-release
   cancel-in-progress: false
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      AWS_DEFAULT_REGION: auto
-      AWS_EC2_METADATA_DISABLED: 'true'
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+      - name: Lint PHP
+        run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Build release
+        env:
+          RELEASE_BASE_URL: ${{ vars.RELEASE_BASE_URL || 'https://files.arcanetechct.com/eventwillow-sync' }}
+        run: python3 tools/build-release.py --version "${GITHUB_REF_NAME#v}" --base-url "$RELEASE_BASE_URL"
+      - name: Publish ZIP, then manifest
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'plugins' }}
+        run: |
+          set -euo pipefail
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          version="${GITHUB_REF_NAME#v}"
+          key="s3://${R2_BUCKET}/eventwillow-sync/eventwillow-sync-${version}.zip"
+          if aws s3 ls "$key" --endpoint-url "$endpoint" | grep -q .; then
+            echo "Release archive already exists; use a new version."
+            exit 1
+          fi
+          aws s3 cp "dist/eventwillow-sync-${version}.zip" "$key" --endpoint-url "$endpoint" --content-type application/zip --cache-control 'public,max-age=31536000,immutable'
+          aws s3 cp dist/info.json "s3://${R2_BUCKET}/eventwillow-sync/info.json" --endpoint-url "$endpoint" --content-type application/json --cache-control 'public,max-age=300'
+      - uses: actions/upload-artifact@v4
         with:
-          fetch-depth: 0
-      - name: Check release credentials
-        run: |
-          : "${AWS_ACCESS_KEY_ID:?Add R2_ACCESS_KEY_ID to repository secrets}"
-          : "${AWS_SECRET_ACCESS_KEY:?Add R2_SECRET_ACCESS_KEY to repository secrets}"
-          : "${R2_ACCOUNT_ID:?Add R2_ACCOUNT_ID to repository secrets}"
-          aws --version
-      - name: PHP syntax
-        run: find . -name '*.php' -not -path './build/*' -print0 | xargs -0 -n1 php -l
-      - name: Prepare release version and tag
-        id: version
-        env:
-          BUMP: ${{ inputs.bump || 'none' }}
-        run: bash scripts/prepare-release.sh
-      - name: Build ZIP and manifest
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: python3 scripts/release.py build "$VERSION"
-      - name: Upload to R2
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          PREFIX='s3://plugins/eventwillow-public'
-          aws s3 cp build/eventwillow-public.zip "${PREFIX}/eventwillow-public-${VERSION}.zip" --endpoint-url "$ENDPOINT" --content-type application/zip --cache-control 'public, max-age=31536000, immutable'
-          # Avoid downgrading the latest package when retrying an older release.
-          if curl --fail --silent --show-error https://files.arcanetechct.com/eventwillow-public/info.json -o build/previous-info.json; then
-            if ! python3 -c 'import json,sys; current=tuple(map(int,json.load(open("build/previous-info.json"))["version"].split("."))); requested=tuple(map(int,sys.argv[1].split("."))); sys.exit(0 if requested>=current else 1)' "$VERSION"; then
-              echo 'Newer R2 manifest exists; leaving latest files intact.'
-              exit 0
-            fi
-          fi
-          aws s3 cp build/eventwillow-public.zip "${PREFIX}/eventwillow-public.zip" --endpoint-url "$ENDPOINT" --content-type application/zip --cache-control 'no-cache, must-revalidate'
-          aws s3 cp build/info.json "${PREFIX}/info.json" --endpoint-url "$ENDPOINT" --content-type application/json --cache-control 'no-cache, must-revalidate'
-      - name: Create GitHub release
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          set -euo pipefail
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" build/eventwillow-public.zip build/info.json build/SHA256SUMS --clobber
-          else
-            gh release create "$TAG" build/eventwillow-public.zip build/info.json build/SHA256SUMS --verify-tag --generate-notes --title "EventWillow Public Views ${TAG}"
-          fi
+          name: eventwillow-sync-release
+          path: dist/

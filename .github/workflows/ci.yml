@@ -11,14 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: PHP syntax
-        run: find . -name '*.php' -not -path './build/*' -print0 | xargs -0 -n1 php -l
+        run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Release script syntax
-        run: |
-          python3 -m py_compile scripts/release.py
-          bash -n scripts/prepare-release.sh
+        run: python3 -m py_compile tools/build-release.py
       - name: Build installation package
-        run: python3 scripts/release.py build
+        run: python3 tools/build-release.py
       - uses: actions/upload-artifact@v4
         with:
-          name: eventwillow-public-validation
-          path: build/
+          name: eventwillow-sync-validation
+          path: dist/

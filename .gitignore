@@ -1,9 +1,6 @@
-/build/
 /dist/
 *.zip
-.env
-.env.*
-!.env.example
-*.log
-__pycache__/
+.env*
 .DS_Store
+__pycache__/
+*.pyc

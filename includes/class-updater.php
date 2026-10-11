@@ -17,33 +17,34 @@ defined( 'ABSPATH' ) || exit;
  * installs it in place. Nothing here talks to WordPress.org or GitHub.
  *
  * Same pattern as arcane-tech-core's updater — class renamed per-plugin
- * (EWP_Updater here) so multiple plugins using this same file
+ * (EventWillow_Sync_Updater here) so multiple plugins using this same file
  * never collide if they ever end up active in the same PHP process.
  *
  * Usage (in the plugin's main file):
  *   require_once __DIR__ . '/includes/class-simple-updater.php';
- *   new EWP_Updater(
- *       'https://files.arcanetechct.com/eventwillow-public/info.json',
+ *   new EventWillow_Sync_Updater(
+ *       'https://files.arcanetechct.com/eventwillow-sync/info.json',
  *       __FILE__,
- *       EWP_VERSION
+ *       EVENTWILLOW_SYNC_VERSION
  *   );
  */
-class EWP_Updater {
+class EventWillow_Sync_Updater {
 
 	private $manifest_url;
 	private $plugin_file;
-	private $plugin_basename; // e.g. "eventwillow-public/eventwillow-public.php"
-	private $slug;            // e.g. "eventwillow-public" — must match the installed plugin's folder name.
+	private $plugin_basename; // e.g. "eventwillow-sync/eventwillow-sync.php"
+	private $slug;            // e.g. "eventwillow-sync" — must match the installed plugin's folder name.
 	private $version;
 	private $cache_key;
 
 	public function __construct( $manifest_url, $plugin_file, $installed_version ) {
-		$this->manifest_url    = $manifest_url;
+		$this->manifest_url    = esc_url_raw($manifest_url);
 		$this->plugin_file     = $plugin_file;
 		$this->plugin_basename = plugin_basename( $plugin_file );
 		$this->slug             = dirname( $this->plugin_basename );
 		$this->version           = $installed_version;
-		$this->cache_key         = 'ewp_updater_' . md5( $this->manifest_url );
+		$this->cache_key         = 'eventwillow_sync_updater_' . md5( $this->manifest_url );
+
 
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_update' ) );
 		add_filter( 'plugins_api', array( $this, 'plugin_info' ), 20, 3 );
@@ -60,30 +61,30 @@ class EWP_Updater {
 	 */
 	private function get_manifest( $force = false ) {
 		if ( ! $force ) {
-			$cached = get_site_transient( $this->cache_key );
+			$cached = get_transient( $this->cache_key );
 			if ( false !== $cached ) {
-				return $cached['manifest'] ?? false;
+				return $cached ?: false;
 			}
 		}
 
+		if ('https' !== wp_parse_url($this->manifest_url, PHP_URL_SCHEME)) return false;
 		$response = wp_safe_remote_get( $this->manifest_url, array(
 			'timeout' => 10,
-			'limit_response_size' => 65536,
 			'headers' => array( 'Accept' => 'application/json' ),
 		) );
 
 		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-			set_site_transient( $this->cache_key, array( 'manifest' => false ), 15 * MINUTE_IN_SECONDS ); // Short retry window on failure.
+			set_transient( $this->cache_key, 0, 15 * MINUTE_IN_SECONDS ); // Short retry window on failure.
 			return false;
 		}
 
 		$data = json_decode( wp_remote_retrieve_body( $response ) );
-		if ( ! is_object( $data ) || ! is_string( $data->version ?? null ) || ! preg_match( '/^\d+\.\d+\.\d+$/D', $data->version ) || ! is_string( $data->download_url ?? null ) || ! wp_http_validate_url( $data->download_url ) || 'https' !== wp_parse_url( $data->download_url, PHP_URL_SCHEME ) || ( isset( $data->slug ) && $data->slug !== $this->slug ) ) {
-			set_site_transient( $this->cache_key, array( 'manifest' => false ), 15 * MINUTE_IN_SECONDS );
+		if ( ! is_object( $data ) || ! is_string( $data->version ?? null ) || ! preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$/D', $data->version) || ! is_string( $data->download_url ?? null ) || ! wp_http_validate_url($data->download_url) || 'https' !== wp_parse_url($data->download_url, PHP_URL_SCHEME) || ($data->slug ?? '') !== $this->slug ) {
+			set_transient( $this->cache_key, 0, 15 * MINUTE_IN_SECONDS );
 			return false;
 		}
 
-		set_site_transient( $this->cache_key, array( 'manifest' => $data ), 6 * HOUR_IN_SECONDS );
+		set_transient( $this->cache_key, $data, 6 * HOUR_IN_SECONDS );
 		return $data;
 	}
 
@@ -105,7 +106,6 @@ class EWP_Updater {
 		}
 
 		if ( version_compare( $this->version, $remote->version, '<' ) ) {
-			unset( $transient->no_update[ $this->plugin_basename ] );
 			$transient->response[ $this->plugin_basename ] = (object) array(
 				'id'           => $this->manifest_url,
 				'slug'         => $this->slug,
@@ -119,13 +119,6 @@ class EWP_Updater {
 			);
 		} else {
 			unset( $transient->response[ $this->plugin_basename ] );
-			$transient->no_update[ $this->plugin_basename ] = (object) array(
-				'id' => $this->manifest_url,
-				'slug' => $this->slug,
-				'plugin' => $this->plugin_basename,
-				'new_version' => $this->version,
-				'package' => '',
-			);
 		}
 
 		return $transient;
@@ -164,7 +157,7 @@ class EWP_Updater {
 	/** Force a fresh manifest fetch right after an update completes. */
 	public function clear_cache_after_update( $upgrader, $options ) {
 		if ( isset( $options['action'], $options['type'] ) && 'update' === $options['action'] && 'plugin' === $options['type'] ) {
-			delete_site_transient( $this->cache_key );
+			delete_transient( $this->cache_key );
 		}
 	}
 
@@ -178,6 +171,6 @@ class EWP_Updater {
 	 * forced check never serves a stale cached manifest.
 	 */
 	public function clear_cache_if_requested() {
-		delete_site_transient( $this->cache_key );
+		delete_transient( $this->cache_key );
 	}
 }

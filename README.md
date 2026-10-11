@@ -1,61 +1,31 @@
-# EventWillow Public Views
+# EventWillow Sync
 
-WordPress presentation for EventWillow events and channels, backed by the private Laravel site API. Browse within your WordPress theme and edit layouts with Elementor; Laravel manages source content, visibility, recurrence, permissions and transactions. Events and channels are not synchronized into WordPress posts.
+Installable WordPress plugin for one-way synchronization of events and channels into native posts, metadata, attachments and taxonomies. No ACF dependency. Elementor Pro supplies optional dynamic tags and Loop Builder integration; storage works without Elementor.
 
-## Installation
+## Install and migrate
 
-Install an `eventwillow-public.zip` release in WordPress. The plugin folder is `eventwillow-public`; the GitHub repository is `AdamArcane/wp-eventwillow`. PHP 8.0 or newer is required. Elementor is needed for the visual widgets, dynamic tags and reusable templates. Basic shortcode views work without Elementor.
+Build with `python3 tools/build-release.py`. Upload the ZIP from `dist/` and activate **EventWillow Sync**. On an existing CPT Lab site, deactivate the old plugin first. Keep its Git checkout if used as the source repository. The ZIP contains only the permanent `eventwillow-sync/` folder and permanent entry point. The source-only compatibility loader is not shipped.
 
-Install the isolated `EventWillowPublicApi` module in the EventWillow Laravel app first. Its versioned endpoint base is `/api/eventwillow/v1`. This repository contains the WordPress plugin only; Laravel module source is maintained separately.
+Internal `ew_lab_*` CPT/taxonomy/option identifiers, `ew_*` metadata, `ew-lab-*` Elementor bindings and `cpt-lab-*` REST/permalink routes deliberately remain compatible. Their public labels no longer say Lab. Renaming stored identifiers needs a separate migration; a cosmetic rename must not break templates, sync routes or existing links. No fixture data, credentials, n8n deployment or scheduling is included in the installed plugin. Deactivation preserves content and images. There is no destructive uninstall hook.
 
-Configure the API base URL under **Settings → EventWillow Public Views**. Set the same `EW_SITE_API_KEY` privately on the Laravel server and the WordPress server, either through WordPress's environment or a constant in private server configuration. Never save this key in Elementor, plugin options, URLs or browser code.
+## Integration contract
 
-Laravel also requires `EW_SITE_API_ALLOWED_IPS` and, when relevant, explicit `EW_SITE_API_TRUSTED_PROXIES`. A local development server can set `APP_ENV=local` and `EW_SITE_API_ENFORCE_IP_ALLOWLIST=false`. The key remains mandatory, and this bypass is never honored outside local mode. Regular user API keys cannot authenticate the site API.
+See [docs/data-contract.md](docs/data-contract.md). The plugin accepts standard authenticated WordPress REST writes. An EventWillow or EventSchedule adapter runs outside WordPress and translates source data into this contract. Never assume the upstream application's endpoints or payload match EventWillow's extended public API. WordPress remains a one-way projection; edits here do not propagate to the source.
 
-## Editing the site
+`eventwillow_sync_brand` changes the Elementor group branding. `eventwillow_sync_update_manifest_url` overrides or disables the self-hosted updater. They are independent of stored data and source authentication. Use Elementor Query ID `ew_upcoming` to order published events by start time and omit ended events; `ew_lab_upcoming` remains an alias.
 
-Select event and channel detail templates and reusable card templates in plugin settings. Choose actual API records for editor previews. Theme headers and footers surround plugin routes.
+## Updates and releases
 
-Elementor widgets include event feeds, event/channel directories, channel events, calendar, search, filters, fields, card image/button, actions, details and related channels. Dynamic tags work in native text, image and link controls. Fields include channel names and WordPress channel URLs. Dates support presets and custom PHP formats in the event timezone. Actions expose per-action label overrides; blank labels keep the API defaults.
+The ATS Dashboard pattern is used: WordPress checks a hosted JSON manifest and installs its ZIP through the normal Plugins update screen. Success is cached six hours and failures fifteen minutes. WordPress's forced update checks clear the cache. The updater runs on scheduled checks and WP-CLI as well as in wp-admin, validates manifest identity and HTTPS download URLs, and has its own class/cache names.
 
-Channel short description, channel description, channel type and channel accent color resolve from the current channel, or the first associated channel when used on an event. Generic Summary/Description still refer to the current record. Select Channel as the record type to use channel data in both the editor and the live page. On an event page this uses the first associated public channel, including its image, website and standalone URL. If the event has no public channel, channel fields stay empty. Event remains the default for existing controls; a standalone channel page always uses its current channel. The EventWillow Channel Accent Color dynamic tag is available in Elementor color controls; the text field exposes the same hex value. Accent colors require the updated Laravel serializer, which adds `accent_color` to channel details and event channel associations.
+Default manifest: `https://files.arcanetechct.com/eventwillow-sync/info.json`. This endpoint must be published before real update discovery works. Override with the `EVENTWILLOW_SYNC_UPDATE_MANIFEST_URL` constant in wp-config.php; set it to false to disable outbound checks. An upstream edition can remove this updater and use WordPress.org distribution.
 
-Select **Built-in configurable card** for image position, section visibility, spacing and color controls, or edit a reusable Elementor card template directly. Modern Elementor atomic template styles load alongside traditional styles. Record-dependent local styles are scoped to each card, so dynamic image backgrounds are not shared across events. Image fallbacks are resolved by Laravel from eligible public channel profiles.
+Set matching versions in the plugin header, version constant and readme. Build locally with `python3 tools/build-release.py --version X.Y.Z`. ZIPs use an explicit allowlist, fixed file timestamps and a single canonical folder. The generated manifest includes a SHA-256 for release verification; the updater does not perform independent checksum verification.
 
-Directories use `/events/` and `/channels/`; detail routes include stable IDs and descriptive slugs. Existing pages at directory paths take precedence: add a listing widget or shortcode there. Occurrence dates survive event links. Browsing stays in WordPress; tickets, RSVP, registration and follow actions open the native Laravel page.
+The GitHub tag workflow builds, lints, and publishes an immutable versioned ZIP to R2, then replaces the manifest last. Configure repository secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; optional repository variables `R2_BUCKET` (defaults to plugins) and `RELEASE_BASE_URL`. Tag `vX.Y.Z` must match source. This workflow does not configure a Git remote or upload anything from the local workstation. Retain older ZIPs for rollback and install an older version manually if needed.
 
-Compatibility shortcodes: `[eventwillow_events]`, `[eventwillow_channels]` and `[eventwillow_event_feed type="upcoming" limit="3"]` (also `popular` and `new`).
+## Compatibility and checks
 
-Responses are cached for no more than two minutes. Expired data is not used during outages. Exclude plugin routes and pages from page/CDN caches that disregard the plugin's no-cache signals. Event/channel canonical URLs point to Laravel; directory and marketing pages remain independently indexable. API images remain remote and are not imported into the media library.
+Declared minimums: WordPress 6.5 and PHP 8.0. Current sandbox validation uses WordPress 7.1.3, PHP 8.4, Elementor 4.3.4 and Pro 4.3.1; declared minimums are not a tested matrix. Atomic backgrounds reuse Elementor's internal renderer and are version-sensitive. Local class background variants are supported; global Atomic classes need separate validation. No Elementor vendor files are modified.
 
-## Releases and R2
-
-The **Release to R2** workflow follows the Arcane Tech plugin distribution pattern. Configure these repository Actions secrets:
-
-- `R2_ACCOUNT_ID`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-
-Use credentials authorized to write the existing `plugins` bucket. The workflow validates credentials before bumping or tagging.
-
-For the first release, run **Actions → Release to R2 → Run workflow**, select `main` and choose `none` to release the version currently in the plugin. Choose `patch`, `minor` or `major` for later bumps. Alternatively, update the plugin Version header and `EWP_VERSION` together, commit, then push a matching `vX.Y.Z` tag. Manual release retries reuse their original bump commit; they do not bump again. Concurrent releases are serialized.
-
-A successful run publishes a GitHub Release with the ZIP, manifest and checksum, and uploads:
-
-- `plugins/eventwillow-public/eventwillow-public.zip` (latest, revalidated)
-- `plugins/eventwillow-public/eventwillow-public-X.Y.Z.zip` (versioned, immutable cache)
-- `plugins/eventwillow-public/info.json` (latest metadata, revalidated)
-
-The public base is `https://files.arcanetechct.com/eventwillow-public/`. The manifest downloads the versioned ZIP. Retrying an older release does not replace a newer latest manifest/package. R2 publication does not deploy or activate the plugin on WordPress.
-
-The built-in update checker follows ATS Dashboard's small manifest-based updater. WordPress shows newer R2 releases on its normal Plugins and Updates screens, including the version-details popup. Successful manifest checks are cached for six hours; failed checks retry after fifteen minutes. Dashboard → Updates → Check again clears this cache. Checks also work during cron and WP-CLI runs. Updates use the standard WordPress installer and its auto-update preference; automatic installation is not enabled by the plugin. The app API key is never sent to the update server.
-
-To disable update checks, define `EW_UPDATES_ENABLED` as `false` in private `wp-config.php`. Forks can override `EW_UPDATE_MANIFEST_URL` there. The existing installation needs one manual ZIP update to receive the checker; subsequent releases can be installed through WordPress.
-
-The package includes only runtime PHP, assets and templates, plus an optional readme/license. It excludes tests, local setup helpers, credentials, workflows, build scripts and Git files. GitHub CI validates PHP syntax and builds the same package on pushes and pull requests.
-
-## Development
-
-Build locally with `python3 scripts/release.py build`. Check the version with `python3 scripts/release.py version`. ZIP output and manifest are in ignored `build/`.
-
-The `tests/` directory contains guarded DDEV-only fixtures and WP-CLI adapter checks. Do not run setup scripts against production. Run `wp eval-file wp-content/plugins/eventwillow-public/tests/adapter.php` in the configured local sandbox after installing the source. CI packaging/lint is separate from runtime/browser acceptance in WordPress and Elementor.
+Run `wp eval-file tests/check-updater.php` on a disposable/local WordPress installation. The test intercepts HTTP and clears its test cache. Existing fixture-based rendering checks remain in the prototype project rather than the distributable ZIP. Source synchronization, access scopes, stale/deleted records, retries, schedule selection and import conflict policy remain the adapter's responsibility.
