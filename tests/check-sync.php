@@ -26,9 +26,11 @@ $http=function($pre,$args,$url) use (&$mode,&$event,&$channels,&$all_channels_mo
     if ($mode==='incomplete' && $events) $meta['total']=2;
     return ['response'=>['code'=>200],'headers'=>[],'body'=>wp_json_encode(['data'=>$data,'meta'=>$meta])];
 };
-$run=function(){
+$last_run_steps=0;
+$run=function() use (&$last_run_steps){
     EventWillow_Sync::start();
-    for ($i=0;$i<30 && get_option(EventWillow_Sync::STATE);$i++) EventWillow_Sync::step();
+    $last_run_steps=0;
+    for ($i=0;$i<30 && get_option(EventWillow_Sync::STATE);$i++) { EventWillow_Sync::step(); $last_run_steps++; }
     if (get_option(EventWillow_Sync::STATE)) throw new RuntimeException('Test job did not finish.');
     return get_option('eventwillow_sync_status');
 };
@@ -57,6 +59,7 @@ try {
     $r=$run();
     $processed=array_sum($r['counts']);
     $assert($r['status']==='success' && $processed===3,'empty channel selection imports all channels and their events');
+    $assert($last_run_steps===1,'small snapshot completes in one bounded continuation');
     $assert(array_values(array_unique($requested_schedules))===['sync-test','sync-test-two'],'empty channel selection requests events for every source channel');
     EventWillow_Sync::start(); $first=get_option(EventWillow_Sync::STATE); EventWillow_Sync::start();
     $assert(get_option(EventWillow_Sync::STATE)===$first,'overlapping starts retain the active job');

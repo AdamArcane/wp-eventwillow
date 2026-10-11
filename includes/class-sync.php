@@ -4,6 +4,7 @@ final class EventWillow_Sync {
     const TICK = 'eventwillow_sync_tick';
     const STEP = 'eventwillow_sync_step';
     const STATE = 'eventwillow_sync_state';
+    private const STEP_TIME_BUDGET = 15;
     public static function settings(): array {
         return wp_parse_args(get_option('eventwillow_sync_settings', []), ['url'=>'','channels'=>[],'interval'=>'hourly','enabled'=>false,'days'=>30,'adopt'=>false]);
     }
@@ -78,61 +79,69 @@ final class EventWillow_Sync {
             $state=get_option(self::STATE);
             if (!$state) return;
             $s=self::settings();
-            try {
-                if ($state['config']!==hash('sha256',wp_json_encode($s))) throw new RuntimeException('Settings changed. Start a new sync.');
-                if (time()-$state['started']>3600) throw new RuntimeException('Sync exceeded one hour. Start a new snapshot.');
-                $importer=new EventWillow_Sync_Importer($s);
-                if (in_array($state['phase'],['channels','events'],true)) {
-                    $next=$state;
-                    self::fetch($next,$s);
-                    $state=$next;
-                }
-                elseif ($state['phase']==='import_channels' || $state['phase']==='import_events') {
-                    $kind=$state['phase']==='import_channels'?'channel':'event';
-                    $items=$state[$kind==='channel'?'channels':'events'];
-                    // One record per job keeps image downloads and thumbnail generation bounded.
-                    if ($state['index']<count($items)) {
-                        $item=$items[$state['index']];
-                        $r=$importer->upsert($item,$kind,$state['map']);
-                        $state['counts'][$r['result']]++; $state['seen'][]=$r['key'];
-                        if ($kind==='channel') $state['map'][$item['id']]=$r['id'];
-                        $state['index']++;
-                    } else {
-                        $state['phase']=$kind==='channel'?'import_events':'withdraw'; $state['index']=0;
-                        if ($kind==='event') $state['candidates']=get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'publish','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
+            $execution_limit=(int)ini_get('max_execution_time');
+            $budget=$execution_limit>0?min(self::STEP_TIME_BUDGET,max(1,$execution_limit-5)):self::STEP_TIME_BUDGET;
+            $deadline=microtime(true)+$budget;
+            do {
+                try {
+                    if ($state['config']!==hash('sha256',wp_json_encode($s))) throw new RuntimeException('Settings changed. Start a new sync.');
+                    if (time()-$state['started']>3600) throw new RuntimeException('Sync exceeded one hour. Start a new snapshot.');
+                    $importer=new EventWillow_Sync_Importer($s);
+                    if (in_array($state['phase'],['channels','events'],true)) {
+                        $next=$state;
+                        self::fetch($next,$s);
+                        $state=$next;
                     }
-                } elseif ($state['phase']==='withdraw') {
-                    foreach (array_slice($state['candidates'],$state['index'],20) as $id) {
-                        $key=get_post_meta($id,'ew_source_key',true);
-                        $date=get_post_meta($id,'ew_occurrence_date',true);
-                        // A rolling window is not evidence that a future occurrence was deleted.
-                        $in_window=get_post_type($id)==='ew_lab_channel' || ($date && $date<=$state['to']);
-                        if ($in_window && !in_array($key,$state['seen'],true)) {
-                            $result=wp_update_post(['ID'=>$id,'post_status'=>'draft'],true);
-                            if (is_wp_error($result)) throw new RuntimeException('Could not draft a withdrawn record.');
-                            $state['counts']['withdrawn']++;
+                    elseif ($state['phase']==='import_channels' || $state['phase']==='import_events') {
+                        $kind=$state['phase']==='import_channels'?'channel':'event';
+                        $items=$state[$kind==='channel'?'channels':'events'];
+                        if ($state['index']<count($items)) {
+                            $item=$items[$state['index']];
+                            $r=$importer->upsert($item,$kind,$state['map']);
+                            $state['counts'][$r['result']]++; $state['seen'][]=$r['key'];
+                            if ($kind==='channel') $state['map'][$item['id']]=$r['id'];
+                            $state['index']++;
+                        } else {
+                            $state['phase']=$kind==='channel'?'import_events':'withdraw'; $state['index']=0;
+                            if ($kind==='event') $state['candidates']=get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'publish','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
                         }
-                        $state['index']++;
+                    } elseif ($state['phase']==='withdraw') {
+                        if ($state['index']<count($state['candidates'])) {
+                            $id=$state['candidates'][$state['index']];
+                            $key=get_post_meta($id,'ew_source_key',true);
+                            $date=get_post_meta($id,'ew_occurrence_date',true);
+                            // A rolling window is not evidence that a future occurrence was deleted.
+                            $in_window=get_post_type($id)==='ew_lab_channel' || ($date && $date<=$state['to']);
+                            if ($in_window && !in_array($key,$state['seen'],true)) {
+                                $result=wp_update_post(['ID'=>$id,'post_status'=>'draft'],true);
+                                if (is_wp_error($result)) throw new RuntimeException('Could not draft a withdrawn record.');
+                                $state['counts']['withdrawn']++;
+                            }
+                            $state['index']++;
+                        }
+                        if ($state['index']>=count($state['candidates'])) {
+                            self::status(['status'=>'success','message'=>'Sync completed.','last_success'=>time(),'counts'=>$state['counts']]);
+                            delete_option(self::STATE); wp_clear_scheduled_hook(self::STEP); return;
+                        }
                     }
-                    if ($state['index']>=count($state['candidates'])) {
-                        self::status(['status'=>'success','message'=>'Sync completed.','last_success'=>time(),'counts'=>$state['counts']]);
+                    $state['attempts']=0;
+                    update_option(self::STATE,$state,false);
+                    self::status(['status'=>'running','message'=>'Processing '.str_replace('_',' ',$state['phase']).'.','counts'=>$state['counts']]);
+                } catch (Throwable $e) {
+                    $state['attempts']++;
+                    // Only our bounded diagnostics are shown; never raw HTTP bodies or credentials.
+                    $message=$e instanceof RuntimeException ? $e->getMessage() : 'Invalid source data or an import error. Check the source and retry.';
+                    if ($state['attempts']>=3 || time()-$state['started']>3600 || $state['config']!==hash('sha256',wp_json_encode($s))) {
+                        self::status(['status'=>'error','message'=>$message,'counts'=>$state['counts']]);
                         delete_option(self::STATE); wp_clear_scheduled_hook(self::STEP); return;
                     }
+                    self::status(['status'=>'retrying','message'=>$message.' Retrying shortly.','counts'=>$state['counts']]);
+                    update_option(self::STATE,$state,false);
+                    if (!wp_next_scheduled(self::STEP)) wp_schedule_single_event(time()+60*$state['attempts'],self::STEP);
+                    return;
                 }
-                $state['attempts']=0;
-                self::status(['status'=>'running','message'=>'Processing '.str_replace('_',' ',$state['phase']).'.','counts'=>$state['counts']]);
-            } catch (Throwable $e) {
-                $state['attempts']++;
-                // Only our bounded diagnostics are shown; never raw HTTP bodies or credentials.
-                $message=$e instanceof RuntimeException ? $e->getMessage() : 'Invalid source data or an import error. Check the source and retry.';
-                if ($state['attempts']>=3 || time()-$state['started']>3600 || $state['config']!==hash('sha256',wp_json_encode($s))) {
-                    self::status(['status'=>'error','message'=>$message,'counts'=>$state['counts']]);
-                    delete_option(self::STATE); wp_clear_scheduled_hook(self::STEP); return;
-                }
-                self::status(['status'=>'retrying','message'=>$message.' Retrying shortly.','counts'=>$state['counts']]);
-            }
-            update_option(self::STATE,$state,false);
-            if (!wp_next_scheduled(self::STEP)) wp_schedule_single_event(time()+($state['attempts']?60*$state['attempts']:5),self::STEP);
+            } while (microtime(true)<$deadline);
+            if (!wp_next_scheduled(self::STEP)) wp_schedule_single_event(time()+5,self::STEP);
         });
     }
     private static function fetch(array &$state, array $s): void {

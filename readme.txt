@@ -1,7 +1,7 @@
 === EventWillow Sync ===
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.1.7
+Stable tag: 0.1.8
 License: GPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -16,6 +16,9 @@ Upload the eventwillow-sync ZIP and activate. For an existing CPT Lab installati
 == Changelog ==
 = 0.1.7 =
 Allows syncing all source channels when no channel identifiers are configured.
+
+= 0.1.8 =
+Processes sync continuations in a bounded batch to improve progress with infrequent cron triggers.
 
 = 0.1.6 =
 Adds scheduled EventWillow API synchronization, import management and public custom-field projection.

@@ -22,7 +22,7 @@ Default manifest: `https://files.arcanetechct.com/eventwillow-sync/info.json`. T
 
 Set matching versions in the plugin header, version constant and readme. Build locally with `python3 tools/build-release.py --version X.Y.Z`. ZIPs use an explicit allowlist, fixed file timestamps and a single canonical folder. The generated manifest includes a SHA-256 for release verification; the updater does not perform independent checksum verification.
 
-The GitHub tag workflow builds, lints, and publishes an immutable versioned ZIP to R2, then replaces the manifest last. Configure repository secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; optional repository variables `R2_BUCKET` (defaults to plugins) and `RELEASE_BASE_URL`. Tag `vX.Y.Z` must match source. This workflow does not configure a Git remote or upload anything from the local workstation. Retain older ZIPs for rollback and install an older version manually if needed.
+The GitHub tag workflow builds, lints, and publishes an immutable versioned ZIP to R2, then replaces the manifest last. Each cron continuation processes records for up to 15 seconds (less when PHP's execution limit requires it) before scheduling the next step. Configure repository secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; optional repository variables `R2_BUCKET` (defaults to plugins) and `RELEASE_BASE_URL`. Tag `vX.Y.Z` must match source. This workflow does not configure a Git remote or upload anything from the local workstation. Retain older ZIPs for rollback and install an older version manually if needed.
 
 ## Compatibility and checks
 
