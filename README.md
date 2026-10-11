@@ -10,7 +10,7 @@ Internal `ew_lab_*` CPT/taxonomy/option identifiers, `ew_*` metadata, `ew-lab-*`
 
 ## Integration contract
 
-See [docs/data-contract.md](docs/data-contract.md). The plugin can import directly from the EventWillow public API v1 using a site key and selected channel identifiers configured in the Sync submenu under Events. It validates complete paginated snapshots before updating or withdrawing managed records; scheduled runs are supported. Other integrations can also use standard authenticated WordPress REST writes. Never assume another upstream application's endpoints or payload match EventWillow's API. WordPress remains a one-way projection; edits here do not propagate to the source.
+See [docs/data-contract.md](docs/data-contract.md). The plugin can import directly from the EventWillow public API v1 using a site key and optional channel identifiers configured in the Sync submenu under Events. Leave channel identifiers blank to import all source channels. It validates complete paginated snapshots before updating or withdrawing managed records; scheduled runs are supported. Other integrations can also use standard authenticated WordPress REST writes. Never assume another upstream application's endpoints or payload match EventWillow's API. WordPress remains a one-way projection; edits here do not propagate to the source.
 
 `eventwillow_sync_brand` changes the Elementor group branding. `eventwillow_sync_update_manifest_url` overrides or disables the self-hosted updater. They are independent of stored data and source authentication. Use Elementor Query ID `ew_upcoming` to order published events by start time and omit ended events; `ew_lab_upcoming` remains an alias.
 

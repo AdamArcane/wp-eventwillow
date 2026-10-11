@@ -34,7 +34,7 @@ final class EventWillow_Sync_Source {
                 || ($e['key'] ?? '') !== $e['id'] . ':' . $e['occurrence_date'] || isset($keys[$e['key']])
                 || !strtotime($e['starts_at'] ?? '') || !strtotime($e['ends_at'] ?? '') || !is_array($e['channels'] ?? null) || !$e['channels']) throw new RuntimeException('Invalid or duplicate source occurrence.');
             new DateTimeZone($e['timezone'] ?? 'UTC');
-            $selected = false;
+            $selected = !$settings['channels'];
             foreach ($e['channels'] as $c) {
                 if (!isset($ids[$c['id'] ?? ''])) throw new RuntimeException('An event references an unavailable channel.');
                 if (in_array($c['identifier'] ?? '', $settings['channels'], true)) $selected = true;

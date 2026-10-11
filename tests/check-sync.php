@@ -8,17 +8,19 @@ foreach ($options as $o) $saved[$o]=get_option($o,null);
 $assert=function($ok,$label){ if (!$ok) throw new RuntimeException($label); WP_CLI::log('PASS '.$label); };
 $settings=['url'=>'https://example.org/api/eventwillow/v1','channels'=>['sync-test'],'interval'=>'hourly','enabled'=>false,'days'=>30,'adopt'=>false];
 $channel=['id'=>'sync-test-channel','identifier'=>'sync-test','name'=>'Sync test channel','timezone'=>'UTC'];
+$channels=[$channel]; $all_channels_mode=false; $requested_schedules=[];
 $date=current_datetime()->format('Y-m-d');
 $event=['id'=>'sync-test-event','key'=>'sync-test-event:'.$date,'occurrence_date'=>$date,'name'=>'Sync test event','timezone'=>'UTC',
     'starts_at'=>$date.'T20:00:00Z','ends_at'=>$date.'T21:00:00Z','channels'=>[$channel],
     'custom_fields'=>['field_012345abcdef'=>['label'=>'Public test','values'=>['First']]]];
 $mode='normal';
-$http=function($pre,$args,$url) use (&$mode,&$event,$channel) {
+$http=function($pre,$args,$url) use (&$mode,&$event,&$channels,&$all_channels_mode,&$requested_schedules,$channel) {
     if (!str_starts_with($url,'https://example.org/api/eventwillow/v1/')) return $pre;
     if ($mode==='failure') return new WP_Error('test','Simulated network failure');
     parse_str(wp_parse_url($url,PHP_URL_QUERY)??'',$query);
     $events=str_contains($url,'/events?');
-    $data=$events?($mode==='empty'?[]:[$event]):[$channel];
+    if ($events) $requested_schedules[]=$query['schedule']??'';
+    $data=$events?($mode==='empty'?[]:($all_channels_mode && ($query['schedule']??'')!=='sync-test'?[]:[$event])):$channels;
     $meta=['api_version'=>'1','generated_at'=>gmdate('c'),'total'=>count($data),'page'=>1,'last_page'=>1];
     if ($events) $meta+=['mode'=>'occurrences','from'=>$query['from'],'to'=>$query['to']];
     if ($mode==='incomplete' && $events) $meta['total']=2;
@@ -49,6 +51,13 @@ try {
     update_post_meta($future,'_eventwillow_scope',$importer->scope); update_post_meta($future,'ew_source_key','future-test'); update_post_meta($future,'ew_occurrence_date',current_datetime()->modify('+100 days')->format('Y-m-d'));
     $mode='empty'; $r=$run(); $assert($r['status']==='success' && get_post_status($event_id)==='draft','complete empty snapshot drafts missing managed occurrences');
     $assert(get_post_status($future)==='publish','future records outside the window are retained');
+    $channels[]=['id'=>'sync-test-channel-two','identifier'=>'sync-test-two','name'=>'Second sync test channel','timezone'=>'UTC'];
+    $all_channels_mode=true; $mode='normal'; $requested_schedules=[];
+    $settings['channels']=[]; update_option('eventwillow_sync_settings',$settings,false);
+    $r=$run();
+    $processed=array_sum($r['counts']);
+    $assert($r['status']==='success' && $processed===3,'empty channel selection imports all channels and their events');
+    $assert(array_values(array_unique($requested_schedules))===['sync-test','sync-test-two'],'empty channel selection requests events for every source channel');
     EventWillow_Sync::start(); $first=get_option(EventWillow_Sync::STATE); EventWillow_Sync::start();
     $assert(get_option(EventWillow_Sync::STATE)===$first,'overlapping starts retain the active job');
     EventWillow_Sync::stop(); $assert(!get_option(EventWillow_Sync::STATE) && !wp_next_scheduled(EventWillow_Sync::STEP),'cancellation removes the job and continuation');

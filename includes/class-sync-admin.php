@@ -14,7 +14,7 @@ final class EventWillow_Sync_Admin {
             $parts=wp_parse_url($url);
             if (!$url || ($parts['scheme']??'')!=='https' || !empty($parts['user']) || !empty($parts['pass']) || !empty($parts['query']) || !empty($parts['fragment']) || !EventWillow_Sync::valid_url($url)) wp_die('Enter a valid HTTPS API base URL without credentials or query parameters.');
             $channels=array_values(array_unique(array_filter(array_map('trim',explode(',',sanitize_text_field(wp_unslash($_POST['channels']??'')))))));
-            if (!$channels || count($channels)>20) wp_die('Select between 1 and 20 channel identifiers.');
+            if (count($channels)>20) wp_die('Select no more than 20 channel identifiers.');
             foreach ($channels as $c) if (!preg_match('/^[a-zA-Z0-9_-]+$/D',$c)) wp_die('Invalid channel identifier.');
             $interval=sanitize_key(wp_unslash($_POST['interval']??''));
             if (!in_array($interval,['eventwillow_15min','hourly','twicedaily','daily'],true)) wp_die('Invalid interval.');
@@ -41,7 +41,7 @@ final class EventWillow_Sync_Admin {
         echo '<input type="hidden" name="action" value="eventwillow_sync"><input type="hidden" name="sync_action" value="save"><table class="form-table"><tbody>';
         self::input('url','API base URL',$s['url'],'url','For example: https://app.example.com/api/eventwillow/v1');
         self::input('site_key','Site key','','password',defined('EVENTWILLOW_SYNC_SITE_KEY')?'Managed by EVENTWILLOW_SYNC_SITE_KEY in wp-config.php.':(EventWillow_Sync::key()?'A key is saved. Leave blank to keep it.':'Use the public API site key.'));
-        self::input('channels','Channel identifiers',implode(', ',$s['channels']),'text','Comma-separated channel identifiers, for example willow-studio.');
+        self::input('channels','Channel identifiers',implode(', ',$s['channels']),'text','Optional, comma-separated channel identifiers. Leave blank to sync all source channels.');
         self::input('days','Days ahead',(string)$s['days'],'number','Import the next 1–90 days. Events beyond this window are retained.');
         echo '<tr><th scope="row"><label for="interval">Frequency</label></th><td><select id="interval" name="interval">';
         foreach (['eventwillow_15min'=>'Every 15 minutes','hourly'=>'Hourly','twicedaily'=>'Twice daily','daily'=>'Daily'] as $value=>$label) echo '<option value="'.esc_attr($value).'" '.selected($s['interval'],$value,false).'>'.esc_html($label).'</option>';

@@ -53,13 +53,13 @@ final class EventWillow_Sync {
                 return;
             }
             $s=self::settings();
-            if (!$s['url'] || !$s['channels'] || !self::key()) {
-                self::status(['status'=>'error','message'=>'Configure the source URL, site key and channels first.']); return;
+            if (!$s['url'] || !self::key()) {
+                self::status(['status'=>'error','message'=>'Configure the source URL and site key first.']); return;
             }
             $now=current_datetime();
             $state=['started'=>time(),'config'=>hash('sha256',wp_json_encode($s)),'phase'=>'channels','page'=>1,'channel_index'=>0,
                 'from'=>$now->format('Y-m-d'),'to'=>$now->modify('+'.$s['days'].' days')->format('Y-m-d'),
-                'channels'=>[],'events'=>[],'seen'=>[],'map'=>[],'index'=>0,'attempts'=>0,
+                'channels'=>[],'schedules'=>[],'events'=>[],'seen'=>[],'map'=>[],'index'=>0,'attempts'=>0,
                 'counts'=>['created'=>0,'updated'=>0,'unchanged'=>0,'withdrawn'=>0]];
             update_option(self::STATE,$state,false);
             self::status(['status'=>'queued','message'=>'Sync queued.','started'=>$state['started']]);
@@ -138,7 +138,7 @@ final class EventWillow_Sync {
     private static function fetch(array &$state, array $s): void {
         $resource=$state['phase'];
         $query=['page'=>$state['page'],'per_page'=>100];
-        if ($resource==='events') $query+=['schedule'=>$s['channels'][$state['channel_index']],'mode'=>'occurrences','from'=>$state['from'],'to'=>$state['to']];
+        if ($resource==='events') $query+=['schedule'=>$state['schedules'][$state['channel_index']],'mode'=>'occurrences','from'=>$state['from'],'to'=>$state['to']];
         $body=EventWillow_Sync_Source::page($s,$resource,$query);
         $meta=$body['meta'];
         if ($state['page']===1) $state['pagination']=['total'=>$meta['total'],'last_page'=>$meta['last_page'],'received'=>0,'keys'=>[]];
@@ -153,9 +153,16 @@ final class EventWillow_Sync {
         if ($state['page']<$meta['last_page']) { $state['page']++; return; }
         if ($state['pagination']['received']!==$meta['total']) throw new RuntimeException('Incomplete source snapshot. No withdrawal will run.');
         $state['page']=1;
-        if ($resource==='channels') { $state['phase']='events'; return; }
+        if ($resource==='channels') {
+            $state['schedules']=$s['channels'] ?: array_values(array_unique(array_column($state['channels'],'identifier')));
+            if (!$state['schedules']) {
+                EventWillow_Sync_Source::validate($state['channels'],$state['events'],$s);
+                $state['phase']='import_channels';
+            } else $state['phase']='events';
+            return;
+        }
         $state['channel_index']++;
-        if ($state['channel_index']<count($s['channels'])) return;
+        if ($state['channel_index']<count($state['schedules'])) return;
         $events=[];
         foreach ($state['events'] as $e) {
             if (isset($events[$e['key']]) && $events[$e['key']]!==$e) throw new RuntimeException('Occurrence changed between channel snapshots.');
@@ -165,7 +172,7 @@ final class EventWillow_Sync {
         EventWillow_Sync_Source::validate($state['channels'],$state['events'],$s);
         $needed=[];
         foreach ($state['events'] as $e) foreach ($e['channels'] as $c) $needed[$c['id']]=true;
-        $state['channels']=array_values(array_filter($state['channels'],fn($c)=>isset($needed[$c['id']]) || in_array($c['identifier'],$s['channels'],true)));
+        if ($s['channels']) $state['channels']=array_values(array_filter($state['channels'],fn($c)=>isset($needed[$c['id']]) || in_array($c['identifier'],$s['channels'],true)));
         $state['phase']='import_channels';
     }
 }
