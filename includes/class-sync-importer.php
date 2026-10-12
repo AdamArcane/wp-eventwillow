@@ -20,9 +20,9 @@ final class EventWillow_Sync_Importer {
         $ids = get_posts(['post_type'=>'attachment','post_status'=>'inherit','fields'=>'ids','posts_per_page'=>1,'meta_key'=>'_eventwillow_image_url','meta_value'=>$url]);
         if ($ids) return (int)$ids[0];
         // Reuse images already imported by the external adapter.
-        $posts = get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'any','posts_per_page'=>1,'meta_key'=>'ew_image_source','meta_value'=>$url]);
+        $posts = get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>'any','posts_per_page'=>1,'meta_key'=>'ew_image_source','meta_value'=>$url]);
         if ($posts && ($id = get_post_thumbnail_id($posts[0]->ID)) && get_post($id)) return (int)$id;
-        $headers=get_posts(['post_type'=>'ew_lab_channel','post_status'=>'any','posts_per_page'=>1,'meta_key'=>'ew_header_image_url','meta_value'=>$url]);
+        $headers=get_posts(['post_type'=>'ew_channel','post_status'=>'any','posts_per_page'=>1,'meta_key'=>'ew_header_image_url','meta_value'=>$url]);
         if ($headers && ($id=(int)get_post_meta($headers[0]->ID,'ew_header_image_id',true)) && get_post($id)) return $id;
         if (wp_parse_url($url, PHP_URL_SCHEME) !== 'https') throw new RuntimeException('Artwork must use HTTPS.');
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -45,7 +45,7 @@ final class EventWillow_Sync_Importer {
     public function upsert(array $item, string $kind, array $channel_map): array {
         $legacy = $kind . ':' . ($kind === 'channel' ? $item['id'] : $item['key']);
         $key = $this->source . ':' . $legacy;
-        $type = 'ew_lab_' . $kind;
+        $type = 'ew_' . $kind;
         $ids = get_posts(['post_type'=>$type,'post_status'=>['publish','draft','pending','private','future','trash'],'fields'=>'ids','posts_per_page'=>2,'meta_key'=>'ew_source_key','meta_value'=>$key]);
         if (count($ids)>1) throw new RuntimeException('Duplicate target source identities; resolve them before syncing.');
         if (!$ids && $this->settings['adopt']) {
@@ -91,8 +91,8 @@ final class EventWillow_Sync_Importer {
         }
         // Compare the same sanitized representation WordPress persists (not escaped JSON).
         foreach ($meta as $k=>$v) $meta[$k]=sanitize_meta($k,$v,'post',$type);
-        $terms = ['ew_lab_location'=>implode(', ',array_filter([$location['city']??'',$location['state']??'',$location['country']??'']))];
-        if ($kind==='event') foreach (['category','format','cost','registration'] as $t) $terms['ew_lab_'.$t]=$item[$t]??'';
+        $terms = ['ew_location'=>implode(', ',array_filter([$location['city']??'',$location['state']??'',$location['country']??'']))];
+        if ($kind==='event') foreach (['category','format','cost','registration'] as $t) $terms['ew_'.$t]=$item[$t]??'';
         $tax = [];
         foreach ($terms as $taxonomy=>$name) {
             $tax[$taxonomy]=[];

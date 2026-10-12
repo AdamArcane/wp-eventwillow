@@ -4,9 +4,9 @@ The WordPress storage contract is independent of a source host, source API key, 
 
 ## Native posts and taxonomy
 
-Events: `/wp-json/wp/v2/cpt-lab-events`, post type `ew_lab_event`. Channels: `/wp-json/wp/v2/cpt-lab-channels`, post type `ew_lab_channel`. Use native `title`, `content`, `excerpt`, `status`, `slug`, and `featured_media`. Upload assets via the native media REST endpoint, then reference attachment IDs. Never replace WordPress publication date with event start time. Each recurring occurrence is a separate event projection.
+Events: `/wp-json/wp/v2/ew-events`, post type `ew_event`. Channels: `/wp-json/wp/v2/ew-channels`, post type `ew_channel`. Use native `title`, `content`, `excerpt`, `status`, `slug`, and `featured_media`. Upload assets via the native media REST endpoint, then reference attachment IDs. Never replace WordPress publication date with event start time. Each recurring occurrence is a separate event projection.
 
-Taxonomies: `ew_lab_location` for both types; `ew_lab_category`, `ew_lab_format`, `ew_lab_cost`, `ew_lab_registration` for events. Create/reuse terms before writing their IDs to posts. Category is hierarchical; the others are flat.
+Taxonomies: `ew_location` for both types; `ew_category`, `ew_format`, `ew_cost`, `ew_registration` for events. Create/reuse terms before writing their IDs to posts. Category is hierarchical; the others are flat.
 
 ## Metadata and relationships
 

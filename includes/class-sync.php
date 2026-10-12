@@ -103,7 +103,7 @@ final class EventWillow_Sync {
                             $state['index']++;
                         } else {
                             $state['phase']=$kind==='channel'?'import_events':'withdraw'; $state['index']=0;
-                            if ($kind==='event') $state['candidates']=get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'publish','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
+                            if ($kind==='event') $state['candidates']=get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>'publish','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
                         }
                     } elseif ($state['phase']==='withdraw') {
                         if ($state['index']<count($state['candidates'])) {
@@ -111,7 +111,7 @@ final class EventWillow_Sync {
                             $key=get_post_meta($id,'ew_source_key',true);
                             $date=get_post_meta($id,'ew_occurrence_date',true);
                             // A rolling window is not evidence that a future occurrence was deleted.
-                            $in_window=get_post_type($id)==='ew_lab_channel' || ($date && $date<=$state['to']);
+                            $in_window=get_post_type($id)==='ew_channel' || ($date && $date<=$state['to']);
                             if ($in_window && !in_array($key,$state['seen'],true)) {
                                 $result=wp_update_post(['ID'=>$id,'post_status'=>'draft'],true);
                                 if (is_wp_error($result)) throw new RuntimeException('Could not draft a withdrawn record.');
