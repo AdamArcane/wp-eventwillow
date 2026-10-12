@@ -2,14 +2,23 @@
 defined('ABSPATH') || exit;
 final class EventWillow_Sync_Admin {
     public static function boot(): void {
-        add_action('admin_menu',function(){ add_submenu_page('edit.php?post_type=ew_lab_event','EventWillow Sync','Sync','manage_options','eventwillow-sync',[self::class,'page']); });
+        add_action('admin_menu',function(){ add_submenu_page('edit.php?post_type=ew_event','EventWillow Sync','Sync','manage_options','eventwillow-sync',[self::class,'page']); });
         add_action('admin_post_eventwillow_sync',[self::class,'handle']);
     }
     public static function handle(): void {
         if (!current_user_can('manage_options')) wp_die('Access denied.',403);
         check_admin_referer('eventwillow_sync');
         $action=sanitize_key(wp_unslash($_POST['sync_action']??''));
-        if ($action==='save') {
+        if ($action==='slugs') {
+            $slugs=[];
+            foreach (['event','channel'] as $kind) {
+                $slugs[$kind]=eventwillow_sync_clean_slug(wp_unslash($_POST['slug_'.$kind]??''));
+                if ($slugs[$kind]==='') wp_die('Enter a URL slug for events and channels.');
+            }
+            if ($slugs['event']===$slugs['channel']) wp_die('Events and channels need different URL slugs.');
+            update_option('eventwillow_sync_slugs',$slugs,false);
+            update_option('eventwillow_sync_flush_rewrite',1,false);
+        } elseif ($action==='save') {
             $url=untrailingslashit(esc_url_raw(wp_unslash($_POST['url']??'')));
             $parts=wp_parse_url($url);
             if (!$url || ($parts['scheme']??'')!=='https' || !empty($parts['user']) || !empty($parts['pass']) || !empty($parts['query']) || !empty($parts['fragment']) || !EventWillow_Sync::valid_url($url)) wp_die('Enter a valid HTTPS API base URL without credentials or query parameters.');
@@ -30,7 +39,7 @@ final class EventWillow_Sync_Admin {
             EventWillow_Sync::status(['status'=>'ready','message'=>'Settings saved.']);
         } elseif ($action==='run') EventWillow_Sync::start();
         elseif ($action==='cancel') { EventWillow_Sync::stop(); EventWillow_Sync::status(['status'=>'cancelled','message'=>'Current run cancelled.']); EventWillow_Sync::schedule(); }
-        wp_safe_redirect(admin_url('edit.php?post_type=ew_lab_event&page=eventwillow-sync')); exit;
+        wp_safe_redirect(admin_url('edit.php?post_type=ew_event&page=eventwillow-sync')); exit;
     }
     public static function page(): void {
         if (!current_user_can('manage_options')) return;
@@ -55,6 +64,17 @@ final class EventWillow_Sync_Admin {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline-block;margin-right:12px">'; wp_nonce_field('eventwillow_sync');
             echo '<input type="hidden" name="action" value="eventwillow_sync"><input type="hidden" name="sync_action" value="'.esc_attr($action).'">'; submit_button($label,'secondary','submit',false); echo '</form>';
         }
+        $slugs=eventwillow_sync_slugs();
+        echo '<h2>Page URLs</h2><p>The slugs form the directory addresses and the base of each detail page.</p><form method="post" action="'.esc_url(admin_url('admin-post.php')).'">'; wp_nonce_field('eventwillow_sync');
+        echo '<input type="hidden" name="action" value="eventwillow_sync"><input type="hidden" name="sync_action" value="slugs"><table class="form-table"><tbody>';
+        foreach (['event'=>'Event slug','channel'=>'Channel slug'] as $kind=>$label) {
+            echo '<tr><th scope="row"><label for="slug_'.esc_attr($kind).'">'.esc_html($label).'</label></th><td><code>'.esc_html(trailingslashit(home_url())).'</code><input id="slug_'.esc_attr($kind).'" name="slug_'.esc_attr($kind).'" type="text" value="'.esc_attr($slugs[$kind]).'" autocomplete="off"><code>/</code><p class="description">Directory: '.esc_html(get_post_type_archive_link('ew_'.$kind) ?: '').'</p></td></tr>';
+        }
+        echo '</tbody></table>'; submit_button('Save URLs','secondary');
+        echo '</form><h2>Page design</h2>';
+        if (defined('ELEMENTOR_PRO_VERSION')) {
+            echo '<p>Design the directories and detail pages in the <a href="'.esc_url(admin_url('admin.php?page=elementor-app#/site-editor')).'">Elementor Theme Builder</a>. Add a <strong>Single</strong> template for Events or Channels for detail pages, and an <strong>Archive</strong> template for the directories. Event directories list upcoming events by start time; channels are listed alphabetically.</p>';
+        } else echo '<p>Elementor Pro enables Theme Builder templates for the event and channel directories and detail pages. Without it, your theme\'s templates are used.</p>';
         echo '<p>Missing source records are drafted only after a complete successful import. Existing images and content are preserved on deactivation.</p></div>';
     }
     private static function input(string $name,string $label,string $value,string $type,string $help): void {

@@ -4,15 +4,19 @@ Installable WordPress plugin for one-way synchronization of events and channels 
 
 ## Install and migrate
 
-Build with `python3 tools/build-release.py`. Upload the ZIP from `dist/` and activate **EventWillow Sync**. On an existing CPT Lab site, deactivate the old plugin first. Keep its Git checkout if used as the source repository. The ZIP contains only the permanent `eventwillow-sync/` folder and permanent entry point. The source-only compatibility loader is not shipped.
+Build with `python3 tools/build-release.py`. Upload the ZIP from `dist/` and activate **EventWillow Sync**. If an earlier prototype plugin is active, deactivate it first. The ZIP contains only the permanent `eventwillow-sync/` folder and permanent entry point. The source-only compatibility loader is not shipped.
 
-Internal `ew_lab_*` CPT/taxonomy/option identifiers, `ew_*` metadata, `ew-lab-*` Elementor bindings and `cpt-lab-*` REST/permalink routes deliberately remain compatible. Their public labels no longer say Lab. Renaming stored identifiers needs a separate migration; a cosmetic rename must not break templates, sync routes or existing links. No fixture data, credentials or n8n deployment is included in the installed plugin; direct sync scheduling is configured in WordPress. Deactivation preserves content and images. There is no destructive uninstall hook.
+Post types are `ew_event` and `ew_channel`; taxonomies are `ew_location`, `ew_category`, `ew_format`, `ew_cost` and `ew_registration`; REST routes are `ew-events` and `ew-channels`; Elementor dynamic tags are named `ew-event-*` and `ew-channel-*`. Sites running the prototype (`ew_lab_*`, `cpt-lab-*`) are migrated automatically once: posts, terms, the public-field registry, and Elementor template data, conditions and tag bindings are renamed, and rewrite rules are flushed. Old `/cpt-lab-events/…` and `/cpt-lab-channels/…` links 301-redirect to the new URLs. External synchronizers must switch to the new REST routes. No fixture data, credentials or n8n deployment is included in the installed plugin; direct sync scheduling is configured in WordPress. Deactivation preserves content and images. There is no destructive uninstall hook.
+
+## Page URLs and design
+
+Under **Events → Sync**, set the URL slugs for the event and channel directories (defaults `events` and `channels`); detail pages live beneath them. Saving flushes rewrite rules. Both post types are public, support Elementor editing and appear in Elementor Pro's Theme Builder: create **Single** templates (Events / Channels) for detail pages and **Archive** templates for the directories using the EventWillow dynamic tags. The event directory lists upcoming events by start time and the channel directory sorts alphabetically, so an Archive Posts widget needs no custom query.
 
 ## Integration contract
 
 See [docs/data-contract.md](docs/data-contract.md). The plugin can import directly from the EventWillow public API v1 using a site key and optional channel identifiers configured in the Sync submenu under Events. Leave channel identifiers blank to import all source channels. It validates complete paginated snapshots before updating or withdrawing managed records; scheduled runs are supported. Other integrations can also use standard authenticated WordPress REST writes. Never assume another upstream application's endpoints or payload match EventWillow's API. WordPress remains a one-way projection; edits here do not propagate to the source.
 
-`eventwillow_sync_brand` changes the Elementor group branding. `eventwillow_sync_update_manifest_url` overrides or disables the self-hosted updater. They are independent of stored data and source authentication. Use Elementor Query ID `ew_upcoming` to order published events by start time and omit ended events; `ew_lab_upcoming` remains an alias.
+`eventwillow_sync_brand` changes the Elementor group branding. `eventwillow_sync_update_manifest_url` overrides or disables the self-hosted updater. They are independent of stored data and source authentication. Use Elementor Query ID `ew_upcoming` to order published events by start time and omit ended events.
 
 ## Updates and releases
 

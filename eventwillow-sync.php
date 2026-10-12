@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EventWillow Sync
  * Description: Native WordPress events, channels, taxonomies and Elementor fields for one-way source synchronization.
- * Version: 0.1.8
+ * Version: 0.2.0
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Arcane Tech Solutions
@@ -13,11 +13,12 @@
 defined('ABSPATH') || exit;
 // Also protects the compatibility loader while replacing the earlier plugin.
 if (defined('EVENTWILLOW_SYNC_VERSION')) return;
-define('EVENTWILLOW_SYNC_VERSION','0.1.8');
+define('EVENTWILLOW_SYNC_VERSION','0.2.0');
 define('EVENTWILLOW_SYNC_FILE',__FILE__);
 function eventwillow_sync_brand() {
     return (string) apply_filters('eventwillow_sync_brand','EventWillow');
 }
+require_once __DIR__.'/includes/migration.php';
 require_once __DIR__.'/includes/schema.php';
 require_once __DIR__.'/includes/class-sync-source.php';
 require_once __DIR__.'/includes/class-sync-importer.php';
@@ -27,7 +28,7 @@ EventWillow_Sync::boot();
 EventWillow_Sync_Admin::boot();
 add_action('elementor/dynamic_tags/register',function($manager){
     require_once __DIR__.'/dynamic-fields.php';
-    ew_lab_register_named_tags($manager);
+    eventwillow_sync_register_named_tags($manager);
 });
 require_once __DIR__.'/atomic-backgrounds.php';
 require_once __DIR__.'/includes/class-updater.php';
@@ -38,8 +39,9 @@ $eventwillow_manifest = apply_filters('eventwillow_sync_update_manifest_url',$ev
 if ($eventwillow_manifest) new EventWillow_Sync_Updater($eventwillow_manifest,__FILE__,EVENTWILLOW_SYNC_VERSION);
 unset($eventwillow_manifest);
 register_activation_hook(__FILE__,function(){
-    ew_lab_register_schema();
-    ew_lab_register_custom_fields();
+    eventwillow_sync_migrate();
+    eventwillow_sync_register_schema();
+    eventwillow_sync_register_custom_fields();
     flush_rewrite_rules();
 });
 register_deactivation_hook(__FILE__,function(){ EventWillow_Sync::stop(); flush_rewrite_rules(); });

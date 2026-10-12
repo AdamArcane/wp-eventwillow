@@ -2,7 +2,7 @@
 /** Run with wp eval-file on a disposable/local WordPress installation. No real API calls. */
 if (!defined('WP_CLI') || !WP_CLI) exit;
 if (get_option(EventWillow_Sync::STATE)) WP_CLI::error('Finish or cancel the current sync before testing.');
-$options=['eventwillow_sync_settings','eventwillow_sync_key','eventwillow_sync_status','ew_lab_public_fields'];
+$options=['eventwillow_sync_settings','eventwillow_sync_key','eventwillow_sync_status','ew_public_fields'];
 $saved=[];
 foreach ($options as $o) $saved[$o]=get_option($o,null);
 $assert=function($ok,$label){ if (!$ok) throw new RuntimeException($label); WP_CLI::log('PASS '.$label); };
@@ -40,16 +40,16 @@ try {
     add_filter('pre_http_request',$http,10,3);
     $r=$run(); $assert($r['status']==='success' && $r['counts']['created']===2,'complete snapshot creates channels and events');
     $importer=new EventWillow_Sync_Importer($settings);
-    $ids=get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
-    $event_id=0; foreach ($ids as $id) if (get_post_type($id)==='ew_lab_event') $event_id=$id;
-    $field=ew_lab_custom_key('field_012345abcdef','Public test');
+    $ids=get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
+    $event_id=0; foreach ($ids as $id) if (get_post_type($id)==='ew_event') $event_id=$id;
+    $field=eventwillow_sync_custom_key('field_012345abcdef','Public test');
     $assert(get_post_meta($event_id,$field,true)==='First','internal import projects individual public fields');
     $r=$run(); $assert($r['counts']['unchanged']===2 && $r['counts']['created']===0,'repeat import preserves IDs and skips unchanged posts');
     $event['custom_fields']=(object)[]; $run();
     $assert(!metadata_exists('post',$event_id,$field),'removed public fields are cleared');
     $mode='failure'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','failed fetch exhausts retries without withdrawing content');
     $mode='incomplete'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','incomplete pagination never triggers withdrawal');
-    $future=wp_insert_post(['post_type'=>'ew_lab_event','post_status'=>'publish','post_title'=>'Future sync test']); $ids[]=$future;
+    $future=wp_insert_post(['post_type'=>'ew_event','post_status'=>'publish','post_title'=>'Future sync test']); $ids[]=$future;
     update_post_meta($future,'_eventwillow_scope',$importer->scope); update_post_meta($future,'ew_source_key','future-test'); update_post_meta($future,'ew_occurrence_date',current_datetime()->modify('+100 days')->format('Y-m-d'));
     $mode='empty'; $r=$run(); $assert($r['status']==='success' && get_post_status($event_id)==='draft','complete empty snapshot drafts missing managed occurrences');
     $assert(get_post_status($future)==='publish','future records outside the window are retained');
@@ -70,7 +70,7 @@ try {
     EventWillow_Sync::stop();
     foreach ($ids as $id) wp_delete_post($id,true);
     // Catch partially created fixtures if an earlier assertion failed.
-    foreach (get_posts(['post_type'=>['ew_lab_event','ew_lab_channel'],'post_status'=>['publish','draft'],'fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_source','meta_value'=>hash('sha256',$settings['url'])]) as $id) wp_delete_post($id,true);
+    foreach (get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>['publish','draft'],'fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_source','meta_value'=>hash('sha256',$settings['url'])]) as $id) wp_delete_post($id,true);
     foreach ($saved as $o=>$v) { if ($v===null) delete_option($o); else update_option($o,$v,false); }
     EventWillow_Sync::schedule();
 }

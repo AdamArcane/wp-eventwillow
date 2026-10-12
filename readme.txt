@@ -1,7 +1,7 @@
 === EventWillow Sync ===
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.1.8
+Stable tag: 0.2.0
 License: GPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -11,9 +11,12 @@ Native WordPress events and channels, taxonomies, featured images and scoped Ele
 The plugin registers storage and presentation. An external authenticated synchronizer, such as n8n, imports data. It does not automatically connect to an EventSchedule installation or start scheduled jobs.
 
 == Installation ==
-Upload the eventwillow-sync ZIP and activate. For an existing CPT Lab installation, deactivate the old plugin before activating this plugin. Existing post IDs, metadata, REST routes and template bindings are retained. Do not activate both implementations. Configure direct source imports from the Sync submenu under Events. No content is deleted on deactivation.
+Upload the eventwillow-sync ZIP and activate. If an earlier prototype plugin is active, deactivate it first; existing posts, metadata, taxonomies and Elementor templates are migrated automatically. Set page URL slugs and configure direct source imports under Events → Sync. Design directories and detail pages with Elementor Pro's Theme Builder. No content is deleted on deactivation.
 
 == Changelog ==
+= 0.2.0 =
+Production naming: post types, taxonomies, REST routes and Elementor tags no longer use "lab" (existing sites migrate automatically; old links redirect). Adds configurable event and channel URL slugs, Elementor editing support and Theme Builder-ready directory and detail pages.
+
 = 0.1.7 =
 Allows syncing all source channels when no channel identifiers are configured.
 

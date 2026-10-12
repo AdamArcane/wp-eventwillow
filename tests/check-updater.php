@@ -39,9 +39,17 @@ try{
     $updater->clear_cache_after_update(null,['action'=>'update','type'=>'plugin']);
     $assert(get_transient($key)===false,'Upgrade clears cache');
     $assert(has_filter('pre_set_site_transient_update_plugins',[$updater,'check_for_update'])!==false,'CLI and cron registration');
-    $assert(post_type_exists('ew_lab_event')&&post_type_exists('ew_lab_channel'),'Both CPTs available');
-    $assert(get_post_type_object('ew_lab_event')->labels->name==='Events','Permanent event labels');
-    $assert(has_action('elementor/query/ew_upcoming')!==false&&has_action('elementor/query/ew_lab_upcoming')!==false,'Query alias compatibility');
+    $assert(post_type_exists('ew_event')&&post_type_exists('ew_channel'),'Both CPTs available');
+    $assert(!post_type_exists('ew_lab_event')&&!post_type_exists('ew_lab_channel'),'No legacy CPT names');
+    $assert(get_post_type_object('ew_event')->labels->name==='Events','Permanent event labels');
+    $assert(has_action('elementor/query/ew_upcoming')!==false,'Upcoming query hook');
+    $assert(post_type_supports('ew_event','elementor')&&post_type_supports('ew_channel','elementor'),'Elementor editing support');
+    $assert(get_post_type_object('ew_event')->has_archive===eventwillow_sync_slugs()['event'],'Event directory slug');
+    $saved_slugs=get_option('eventwillow_sync_slugs',null);
+    update_option('eventwillow_sync_slugs',['event'=>'Happenings','channel'=>'happenings']);
+    $assert(eventwillow_sync_slugs()==['event'=>'happenings','channel'=>'channels'],'Slug sanitizing and collision fallback');
+    if ($saved_slugs===null) delete_option('eventwillow_sync_slugs'); else update_option('eventwillow_sync_slugs',$saved_slugs);
+    $assert(eventwillow_sync_rename_legacy(['n'=>'ew-lab-event-title','p'=>'ew_lab_event'])===['n'=>'ew-event-title','p'=>'ew_event'],'Legacy Elementor reference migration');
     echo "$checks release checks passed\n";
 }finally{
     delete_transient($key);
