@@ -26,6 +26,7 @@ function eventwillow_sync_tag_definitions() {
     foreach(['category'=>'Categories','location'=>'Locations','format'=>'Format','cost'=>'Cost','registration'=>'Registration type'] as $key=>$label)$add('event','taxonomy-'.$key,$label,'ew_'.$key,'terms');
     foreach(['website'=>'Website','channel_type'=>'Channel type','accent_color'=>'Accent color','email'=>'Public email','phone'=>'Public phone','facebook_url'=>'Facebook URL','instagram_url'=>'Instagram URL','youtube_url'=>'YouTube URL','tiktok_url'=>'TikTok URL','linkedin_url'=>'LinkedIn URL','x_url'=>'X URL','bluesky_url'=>'Bluesky URL'] as $key=>$label)$add('channel',$key,$label,'ew_'.$key,$key==='accent_color'?'color':(($key==='website'||str_ends_with($key,'_url'))?'url':'text'));
     $add('channel','header-image','Header image','ew_header_image_id','image');
+    $add('event','category-image','Category image','ew_image_id','image');
     $add('channel','taxonomy-location','Locations','ew_location','terms');
     foreach(get_option('ew_public_fields',[]) as $key=>$field)$add('event','custom-'.substr(hash('sha256',$key),0,16),$field['label'],$key);
     return $defs;
@@ -38,6 +39,7 @@ trait EventWillow_Tag_Definition {
     protected function value(){
         $d=$this->definition();$id=eventwillow_sync_context_id($d['kind']);if(!$id)return '';
         if($d['native'])return match($d['key']){'title'=>get_post_field('post_title',$id),'content'=>get_post_field('post_content',$id),'excerpt'=>get_post_field('post_excerpt',$id),'permalink'=>get_permalink($id),'image'=>get_post_thumbnail_id($id),default=>''};
+        if($d['key']==='ew_image_id'){foreach(wp_get_object_terms($id,'ew_category',['fields'=>'ids'])as $tid){$img=(int)get_term_meta($tid,'ew_image_id',true);if($img)return $img;}return 0;}
         if($d['format']==='terms'){$names=wp_get_object_terms($id,$d['key'],['fields'=>'names']);return is_wp_error($names)?'':implode(', ',$names);}
         return get_post_meta($id,$d['key'],true);
     }

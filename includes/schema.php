@@ -58,6 +58,65 @@ function eventwillow_sync_register_schema() {
     register_taxonomy('ew_category','ew_event',['label'=>'Event categories','public'=>true,'show_in_rest'=>true,'hierarchical'=>true]);
 }
 add_action('init','eventwillow_sync_register_schema');
+
+// Category images: stored as an attachment ID in term meta.
+add_action('init',function(){
+    register_term_meta('ew_category','ew_image_id',['single'=>true,'type'=>'integer','show_in_rest'=>true,'sanitize_callback'=>'absint','auth_callback'=>fn()=>current_user_can('manage_categories')]);
+});
+function eventwillow_sync_category_image_field($term=null){
+    $id=$term?(int)get_term_meta($term->term_id,'ew_image_id',true):0;
+    $preview=$id?wp_get_attachment_image($id,[80,80]):'';
+    $field='<input type="hidden" name="ew_image_id" id="ew-image-id" value="'.esc_attr($id).'">'
+        .'<div id="ew-image-preview" style="margin-bottom:8px">'.$preview.'</div>'
+        .'<button type="button" class="button" id="ew-image-select">Select image</button> '
+        .'<button type="button" class="button" id="ew-image-remove"'.($id?'':' style="display:none"').'>Remove image</button>';
+    wp_nonce_field('ew_category_image','ew_category_image_nonce');
+    if($term){echo '<tr class="form-field"><th scope="row"><label>Image</label></th><td>'.$field.'</td></tr>';}
+    else{echo '<div class="form-field"><label>Image</label>'.$field.'</div>';}
+}
+add_action('ew_category_add_form_fields','eventwillow_sync_category_image_field');
+add_action('ew_category_edit_form_fields','eventwillow_sync_category_image_field');
+function eventwillow_sync_save_category_image($term_id){
+    if(!isset($_POST['ew_category_image_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ew_category_image_nonce'])),'ew_category_image')||!current_user_can('edit_term',$term_id))return;
+    $id=absint($_POST['ew_image_id']??0);
+    if($id&&!wp_attachment_is_image($id))$id=0;
+    if($id)update_term_meta($term_id,'ew_image_id',$id);else delete_term_meta($term_id,'ew_image_id');
+}
+add_action('created_ew_category','eventwillow_sync_save_category_image');
+add_action('edited_ew_category','eventwillow_sync_save_category_image');
+add_action('admin_enqueue_scripts',function(){
+    $screen=get_current_screen();
+    if(!$screen||$screen->taxonomy!=='ew_category'||!in_array($screen->base,['edit-tags','term'],true))return;
+    wp_enqueue_media();
+    wp_add_inline_script('jquery-core',<<<'JS'
+jQuery(function($){
+    var frame;
+    $(document).on('click','#ew-image-select',function(e){
+        e.preventDefault();
+        frame=frame||wp.media({title:'Category image',multiple:false,library:{type:'image'}});
+        frame.off('select').on('select',function(){
+            var a=frame.state().get('selection').first().toJSON();
+            var url=(a.sizes&&a.sizes.thumbnail)?a.sizes.thumbnail.url:a.url;
+            $('#ew-image-id').val(a.id);
+            $('#ew-image-preview').html($('<img>',{src:url,width:80,height:80}));
+            $('#ew-image-remove').show();
+        });
+        frame.open();
+    });
+    $(document).on('click','#ew-image-remove',function(e){
+        e.preventDefault();
+        $('#ew-image-id').val('');$('#ew-image-preview').empty();$(this).hide();
+    });
+    $(document).ajaxComplete(function(e,x,s){
+        if(s.data&&String(s.data).indexOf('action=add-tag')>-1){$('#ew-image-id').val('');$('#ew-image-preview').empty();$('#ew-image-remove').hide();}
+    });
+});
+JS);
+});
+add_filter('manage_edit-ew_category_columns',function($cols){$cb=array_slice($cols,0,1,true);return $cb+['image'=>'Image']+array_slice($cols,1,null,true);});
+add_filter('manage_ew_category_custom_column',function($out,$col,$term_id){
+    return $col==='image'?wp_get_attachment_image((int)get_term_meta($term_id,'ew_image_id',true),[40,40]):$out;
+},10,3);
 // Rewrite rules must be rebuilt after the slugs change; the flag survives the save redirect.
 add_action('init',function(){
     if (get_option('eventwillow_sync_flush_rewrite')) {
