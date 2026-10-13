@@ -14,6 +14,12 @@ function eventwillow_sync_context_id($kind) {
     }
     return 0;
 }
+function eventwillow_sync_context_term() {
+    global $wp_query;
+    $term=$wp_query->loop_term??null;
+    if(!$term){$obj=get_queried_object();$term=$obj instanceof WP_Term?$obj:null;}
+    return $term&&$term->taxonomy==='ew_category'?$term:null;
+}
 function eventwillow_sync_tag_definitions() {
     $defs=[];
     $add=function($kind,$name,$label,$key,$format='text',$native=false)use(&$defs){$defs['ew-'.$kind.'-'.$name]=compact('kind','label','key','format','native');};
@@ -37,7 +43,12 @@ trait EventWillow_Tag_Definition {
     public function get_title(){return $this->definition()['label'];}
     public function get_group(){return $this->definition()['kind']==='event'?'ew-events':'ew-channels';}
     protected function value(){
-        $d=$this->definition();$id=eventwillow_sync_context_id($d['kind']);if(!$id)return '';
+        $d=$this->definition();
+        if($d['key']==='ew_image_id'){
+            $term=eventwillow_sync_context_term();
+            if($term)return (int)get_term_meta($term->term_id,'ew_image_id',true);
+        }
+        $id=eventwillow_sync_context_id($d['kind']);if(!$id)return '';
         if($d['native'])return match($d['key']){'title'=>get_post_field('post_title',$id),'content'=>get_post_field('post_content',$id),'excerpt'=>get_post_field('post_excerpt',$id),'permalink'=>get_permalink($id),'image'=>get_post_thumbnail_id($id),default=>''};
         if($d['key']==='ew_image_id'){foreach(wp_get_object_terms($id,'ew_category',['fields'=>'ids'])as $tid){$img=(int)get_term_meta($tid,'ew_image_id',true);if($img)return $img;}return 0;}
         if($d['format']==='terms'){$names=wp_get_object_terms($id,$d['key'],['fields'=>'names']);return is_wp_error($names)?'':implode(', ',$names);}
