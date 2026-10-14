@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EventWillow Sync
  * Description: Native WordPress events, channels, taxonomies and Elementor fields for one-way source synchronization.
- * Version: 0.2.2
+ * Version: 0.2.3
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Arcane Tech Solutions
@@ -13,7 +13,7 @@
 defined('ABSPATH') || exit;
 // Also protects the compatibility loader while replacing the earlier plugin.
 if (defined('EVENTWILLOW_SYNC_VERSION')) return;
-define('EVENTWILLOW_SYNC_VERSION','0.2.2');
+define('EVENTWILLOW_SYNC_VERSION','0.2.3');
 define('EVENTWILLOW_SYNC_FILE',__FILE__);
 function eventwillow_sync_brand() {
     return (string) apply_filters('eventwillow_sync_brand','EventWillow');

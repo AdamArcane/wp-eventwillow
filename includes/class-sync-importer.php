@@ -43,6 +43,7 @@ final class EventWillow_Sync_Importer {
         } finally { if (file_exists($tmp)) unlink($tmp); }
     }
     public function upsert(array $item, string $kind, array $channel_map): array {
+        EventWillow_Sync_Source::validate_location($item);
         $legacy = $kind . ':' . ($kind === 'channel' ? $item['id'] : $item['key']);
         $key = $this->source . ':' . $legacy;
         $type = 'ew_' . $kind;
@@ -61,6 +62,11 @@ final class EventWillow_Sync_Importer {
             'ew_actions_json'=>wp_json_encode($item['actions']??[])];
         foreach (['city','state','venue','address','postal','country'] as $field) $meta['ew_'.$field] = $location[$field]??'';
         $meta['ew_venue_source_id'] = $location['venue_id']??'';
+        // An unresolved/removed location clears old coordinates, including after an address change.
+        $located=isset($location['latitude'],$location['longitude']) && ($kind!=='event' || ($item['format']??'')!=='online');
+        $meta['ew_latitude']=$located?(string)$location['latitude']:'';
+        $meta['ew_longitude']=$located?(string)$location['longitude']:'';
+        $meta['ew_geocode_status']=$kind==='event' && ($item['format']??'')==='online'?'online':($location['geocode_status']??'unavailable');
         if ($kind==='channel') {
             foreach (['email','phone'] as $field) $meta['ew_'.$field] = $item['contact'][$field]??'';
             $meta += ['ew_website'=>$item['website']??'','ew_channel_type'=>$item['type']??'','ew_accent_color'=>$item['accent_color']??'',
@@ -103,8 +109,12 @@ final class EventWillow_Sync_Importer {
             }
         }
         $image = $this->image($item['image']??'');
+        // EventWillow renders Markdown and sanitizes it at the source. Preserve that HTML in
+        // WordPress so the native editor and Elementor's Post Content widget can render it.
+        // Older API payloads still receive the previous plain-text fallback.
+        $description_html=is_string($item['description_html']??null)?$item['description_html']:'';
         $post = ['post_type'=>$type,'post_status'=>'publish','post_title'=>sanitize_text_field($item['name']),
-            'post_content'=>wpautop(esc_html($item['description']??'')),'post_excerpt'=>sanitize_textarea_field($item['summary']??'')];
+            'post_content'=>$description_html!==''?wp_kses_post($description_html):wpautop(esc_html($item['description']??'')),'post_excerpt'=>sanitize_textarea_field($item['summary']??'')];
         // Compare the actual projection, including local edits, instead of trusting a stale source hash.
         $same = $id && get_post($id);
         if ($same) {

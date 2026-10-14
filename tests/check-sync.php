@@ -12,6 +12,7 @@ $channels=[$channel]; $all_channels_mode=false; $requested_schedules=[];
 $date=current_datetime()->format('Y-m-d');
 $event=['id'=>'sync-test-event','key'=>'sync-test-event:'.$date,'occurrence_date'=>$date,'name'=>'Sync test event','timezone'=>'UTC',
     'starts_at'=>$date.'T20:00:00Z','ends_at'=>$date.'T21:00:00Z','channels'=>[$channel],
+    'description'=>'**Plain fallback**','description_html'=>'<p><strong>Formatted Markdown</strong></p>',
     'custom_fields'=>['field_012345abcdef'=>['label'=>'Public test','values'=>['First']]]];
 $mode='normal';
 $http=function($pre,$args,$url) use (&$mode,&$event,&$channels,&$all_channels_mode,&$requested_schedules,$channel) {
@@ -43,9 +44,24 @@ try {
     $ids=get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
     $event_id=0; foreach ($ids as $id) if (get_post_type($id)==='ew_event') $event_id=$id;
     $field=eventwillow_sync_custom_key('field_012345abcdef','Public test');
+    $assert(get_post_field('post_content',$event_id)==='<p><strong>Formatted Markdown</strong></p>','rendered Markdown is saved as native event post content');
     $assert(get_post_meta($event_id,$field,true)==='First','internal import projects individual public fields');
     $r=$run(); $assert($r['counts']['unchanged']===2 && $r['counts']['created']===0,'repeat import preserves IDs and skips unchanged posts');
     $event['custom_fields']=(object)[]; $run();
+    $event['location']=['latitude'=>41.76,'longitude'=>-72.67,'geocode_status'=>'found'];
+    $r=$run();
+    $assert($r['status']==='success' && (float)get_post_meta($event_id,'ew_latitude',true)===41.76 && (float)get_post_meta($event_id,'ew_longitude',true)===-72.67,'coordinate pair reaches native event metadata');
+    $r=$run(); $assert($r['counts']['unchanged']===2,'coordinates do not cause repeated writes');
+    $event['location']['latitude']=91;
+    $r=$run(); $assert($r['status']==='error' && (float)get_post_meta($event_id,'ew_latitude',true)===41.76 && get_post_status($event_id)==='publish','invalid coordinate snapshot does not write or withdraw events');
+    $event['location']=['latitude'=>null,'longitude'=>null,'geocode_status'=>'pending'];
+    $r=$run(); $assert($r['status']==='success' && get_post_meta($event_id,'ew_latitude',true)==='' && get_post_meta($event_id,'ew_longitude',true)==='' && get_post_meta($event_id,'ew_geocode_status',true)==='pending','pending changed address clears both old coordinates');
+    $event['location']=['latitude'=>0,'longitude'=>20,'geocode_status'=>'approximate'];
+    $r=$run(); $assert($r['status']==='success' && get_post_meta($event_id,'ew_latitude',true)==='0','valid equator coordinate is retained');
+    $event['format']='online'; $run();
+    $assert(get_post_meta($event_id,'ew_latitude',true)==='' && get_post_meta($event_id,'ew_geocode_status',true)==='online','online events never retain a physical search position');
+    unset($event['location'],$event['format']);
+    $r=$run(); $assert($r['status']==='success' && get_post_meta($event_id,'ew_latitude',true)==='','older API payloads remain compatible');
     $assert(!metadata_exists('post',$event_id,$field),'removed public fields are cleared');
     $mode='failure'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','failed fetch exhausts retries without withdrawing content');
     $mode='incomplete'; $r=$run(); $assert($r['status']==='error' && get_post_status($event_id)==='publish','incomplete pagination never triggers withdrawal');

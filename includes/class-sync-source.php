@@ -2,6 +2,18 @@
 /** EventWillow public API v1 client. */
 defined('ABSPATH') || exit;
 final class EventWillow_Sync_Source {
+    /** Null pairs are unresolved; malformed coordinates invalidate the snapshot before writes. */
+    public static function validate_location(array $item): void {
+        $location=$item['location']??[];
+        if (!is_array($location)) throw new RuntimeException('Invalid source location.');
+        $lat=$location['latitude']??null; $lon=$location['longitude']??null;
+        if ($lat===null && $lon===null) return;
+        if (!is_numeric($lat) || !is_numeric($lon) || !is_finite((float)$lat) || !is_finite((float)$lon)
+            || abs((float)$lat)>90 || abs((float)$lon)>180 || ((float)$lat==0 && (float)$lon==0)
+            || !in_array($location['geocode_status']??'', ['found','approximate'], true)) {
+            throw new RuntimeException('Invalid source coordinates.');
+        }
+    }
     public static function page(array $settings, string $resource, array $query): array {
         $response = EventWillow_Sync::request(add_query_arg($query, rtrim($settings['url'], '/') . '/' . $resource), [
             'timeout' => 15, 'redirection' => 0, 'limit_response_size' => 4 * 1024 * 1024,
@@ -24,11 +36,13 @@ final class EventWillow_Sync_Source {
     public static function validate(array $channels, array $events, array $settings): void {
         $ids = [];
         foreach ($channels as $c) {
+            self::validate_location($c);
             if (!is_array($c) || !is_string($c['id'] ?? null) || !$c['id'] || !is_string($c['identifier'] ?? null) || !is_string($c['name'] ?? null) || isset($ids[$c['id']])) throw new RuntimeException('Invalid or duplicate source channel.');
             $ids[$c['id']] = true;
         }
         $keys = [];
         foreach ($events as $e) {
+            self::validate_location($e);
             if (!is_array($e) || !is_string($e['id'] ?? null) || !is_string($e['name'] ?? null)
                 || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $e['occurrence_date'] ?? '')
                 || ($e['key'] ?? '') !== $e['id'] . ':' . $e['occurrence_date'] || isset($keys[$e['key']])

@@ -18,6 +18,18 @@ Structured JSON is stored as JSON strings, not arbitrary nested REST metadata. S
 
 ## Authentication and operation
 
+## Cached venue coordinates
+
+The built-in pull importer accepts optional `location.latitude`, `location.longitude`, and
+`location.geocode_status`. A usable pair requires status `found` or `approximate`, numeric
+latitude within -90..90 and longitude within -180..180, excluding the placeholder pair 0,0.
+These project to `ew_latitude`, `ew_longitude`, and `ew_geocode_status` on events/channels.
+Coordinate metadata is stored as decimal strings; unresolved values are empty strings, not zero.
+Both null or omitted coordinates clear a previous pair. Malformed pairs reject the complete
+snapshot before imports or withdrawals. Online event positions are always cleared.
+Laravel owns geocoding and its cache; WordPress makes no geocoding requests. Radius queries and
+a dedicated spatial search index are separate follow-up work; this change supplies their data.
+
 Use HTTPS and an application password for a dedicated WordPress sync user with only the required post, taxonomy and media permissions. Standard WordPress REST permission checks apply; the plugin does not expose a public ingestion endpoint, retain source credentials or bypass authorization.
 
 Sync channels before events, import images, then events and relationships. Use persistent source keys and compare source versions/content hashes to skip unchanged writes. Define handling for unpublished/deleted source records, stale images, failed imports and conflicts with local edits. Serialize overlapping runs or provide a locking mechanism. The existing n8n workflow is an EventWillow test adapter, not verified upstream EventSchedule compatibility.

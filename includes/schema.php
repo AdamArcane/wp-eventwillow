@@ -8,7 +8,7 @@ function eventwillow_sync_meta_keys($type) {
     $common=['ew_source_id','ew_source_key','ew_canonical_url','ew_timezone','ew_synced_at','ew_image_source','ew_identifier','ew_city','ew_state','ew_venue','ew_address','ew_postal','ew_country','ew_venue_source_id'];
     $event=['ew_start_utc','ew_end_utc','ew_occurrence_date','ew_date_label','ew_price_label','ew_registration_url','ew_ticket_url','ew_follow_url','ew_recurrence','ew_source_created_at'];
     $channel=['ew_website','ew_channel_type','ew_accent_color','ew_email','ew_phone','ew_header_image_url','ew_facebook_url','ew_instagram_url','ew_youtube_url','ew_tiktok_url','ew_linkedin_url','ew_x_url','ew_bluesky_url'];
-    return array_merge($common,$type==='ew_event'?$event:$channel);
+    return array_merge($common,['ew_latitude','ew_longitude','ew_geocode_status'],$type==='ew_event'?$event:$channel);
 }
 /** URL bases for the event and channel directories (also the archive slugs). */
 function eventwillow_sync_default_slugs() {
