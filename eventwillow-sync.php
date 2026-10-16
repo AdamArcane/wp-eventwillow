@@ -2,7 +2,7 @@
 /**
  * Plugin Name: EventWillow Sync
  * Description: Native WordPress events, channels, taxonomies and Elementor fields for one-way source synchronization.
- * Version: 0.2.3
+ * Version: 0.2.4
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Arcane Tech Solutions
@@ -13,7 +13,7 @@
 defined('ABSPATH') || exit;
 // Also protects the compatibility loader while replacing the earlier plugin.
 if (defined('EVENTWILLOW_SYNC_VERSION')) return;
-define('EVENTWILLOW_SYNC_VERSION','0.2.3');
+define('EVENTWILLOW_SYNC_VERSION','0.2.4');
 define('EVENTWILLOW_SYNC_FILE',__FILE__);
 function eventwillow_sync_brand() {
     return (string) apply_filters('eventwillow_sync_brand','EventWillow');
@@ -24,8 +24,10 @@ require_once __DIR__.'/includes/class-sync-source.php';
 require_once __DIR__.'/includes/class-sync-importer.php';
 require_once __DIR__.'/includes/class-sync.php';
 require_once __DIR__.'/includes/class-sync-admin.php';
+require_once __DIR__.'/includes/class-follow.php';
 EventWillow_Sync::boot();
 EventWillow_Sync_Admin::boot();
+EventWillow_Follow::boot();
 add_action('elementor/dynamic_tags/register',function($manager){
     require_once __DIR__.'/dynamic-fields.php';
     eventwillow_sync_register_named_tags($manager);

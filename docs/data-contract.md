@@ -16,6 +16,8 @@ Event fields include ISO-8601 `ew_start_utc` / `ew_end_utc`, calendar `ew_occurr
 
 Structured JSON is stored as JSON strings, not arbitrary nested REST metadata. See `ew_custom_fields_json`, `ew_price_json`, `ew_social_links_json`, `ew_actions_json`, `ew_sub_schedules_json`. Public event custom fields use `field_<12 lowercase hex characters>` keys with `{label: string, values: scalar[]}` definitions. The plugin exposes learned individual metadata and dynamic tags and clears values removed from a subsequent supplied custom-field payload. Private source fields must be excluded before transport. Send an empty JSON object explicitly to clear the projection; omitting the field retains previous values.
 
+Channel payloads include `show_subscribe_panel`, `account_followers_count`, and `confirmed_email_subscribers_count`. These project to channel metadata and separate Elementor tags. The optional `[eventwillow_follow]` shortcode renders only on a published channel with the panel enabled. Its form posts to WordPress, which calls `POST /channels/{identifier}/follow` on the source API with the configured site key; credentials never reach the visitor's browser. The source re-checks the panel setting and sends its normal confirmation email. A successful request is not a confirmed subscription until the visitor confirms. The two counts remain separate: account followers exclude account links created by confirming an email signup, while confirmed email subscribers count confirmed, unsuppressed signup records.
+
 ## Authentication and operation
 
 ## Cached venue coordinates

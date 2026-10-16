@@ -71,7 +71,10 @@ final class EventWillow_Sync_Importer {
             foreach (['email','phone'] as $field) $meta['ew_'.$field] = $item['contact'][$field]??'';
             $meta += ['ew_website'=>$item['website']??'','ew_channel_type'=>$item['type']??'','ew_accent_color'=>$item['accent_color']??'',
                 'ew_header_image_url'=>$item['header_image']??'','ew_header_image_id'=>$this->image($item['header_image']??''),
-                'ew_social_links_json'=>wp_json_encode($item['social_links']??[])];
+                'ew_social_links_json'=>wp_json_encode($item['social_links']??[]),
+                'ew_show_subscribe_panel'=>!empty($item['show_subscribe_panel'])?'1':'0',
+                'ew_account_followers_count'=>(string)max(0,(int)($item['account_followers_count']??0)),
+                'ew_confirmed_email_subscribers_count'=>(string)max(0,(int)($item['confirmed_email_subscribers_count']??0))];
             foreach (['facebook','instagram','youtube','tiktok','linkedin','x','bluesky'] as $platform) {
                 $meta['ew_'.$platform.'_url']='';
                 foreach ($item['social_links']??[] as $link) if (($link['platform']??'')===$platform || ($platform==='x' && ($link['platform']??'')==='twitter')) $meta['ew_'.$platform.'_url']=$link['url']??'';

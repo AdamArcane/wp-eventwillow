@@ -7,7 +7,7 @@ $saved=[];
 foreach ($options as $o) $saved[$o]=get_option($o,null);
 $assert=function($ok,$label){ if (!$ok) throw new RuntimeException($label); WP_CLI::log('PASS '.$label); };
 $settings=['url'=>'https://example.org/api/eventwillow/v1','channels'=>['sync-test'],'interval'=>'hourly','enabled'=>false,'days'=>30,'adopt'=>false];
-$channel=['id'=>'sync-test-channel','identifier'=>'sync-test','name'=>'Sync test channel','timezone'=>'UTC'];
+$channel=['id'=>'sync-test-channel','identifier'=>'sync-test','name'=>'Sync test channel','timezone'=>'UTC','show_subscribe_panel'=>true,'account_followers_count'=>12,'confirmed_email_subscribers_count'=>8];
 $channels=[$channel]; $all_channels_mode=false; $requested_schedules=[];
 $date=current_datetime()->format('Y-m-d');
 $event=['id'=>'sync-test-event','key'=>'sync-test-event:'.$date,'occurrence_date'=>$date,'name'=>'Sync test event','timezone'=>'UTC',
@@ -42,7 +42,10 @@ try {
     $r=$run(); $assert($r['status']==='success' && $r['counts']['created']===2,'complete snapshot creates channels and events');
     $importer=new EventWillow_Sync_Importer($settings);
     $ids=get_posts(['post_type'=>['ew_event','ew_channel'],'post_status'=>'any','fields'=>'ids','posts_per_page'=>-1,'meta_key'=>'_eventwillow_scope','meta_value'=>$importer->scope]);
-    $event_id=0; foreach ($ids as $id) if (get_post_type($id)==='ew_event') $event_id=$id;
+    $event_id=0; $channel_id=0; foreach ($ids as $id) { if (get_post_type($id)==='ew_event') $event_id=$id; else $channel_id=$id; }
+    $assert(get_post_meta($channel_id,'ew_show_subscribe_panel',true)==='1'
+        && get_post_meta($channel_id,'ew_account_followers_count',true)==='12'
+        && get_post_meta($channel_id,'ew_confirmed_email_subscribers_count',true)==='8','channel signup setting and separate audience counts reach native metadata');
     $field=eventwillow_sync_custom_key('field_012345abcdef','Public test');
     $assert(get_post_field('post_content',$event_id)==='<p><strong>Formatted Markdown</strong></p>','rendered Markdown is saved as native event post content');
     $assert(get_post_meta($event_id,$field,true)==='First','internal import projects individual public fields');

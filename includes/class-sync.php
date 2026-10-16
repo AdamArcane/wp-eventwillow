@@ -20,6 +20,11 @@ final class EventWillow_Sync {
         try { return wp_safe_remote_get($url,$args); }
         finally { remove_filter('http_request_host_is_external',[self::class,'trusted_host'],10); }
     }
+    public static function post(string $url, array $args) {
+        add_filter('http_request_host_is_external',[self::class,'trusted_host'],10,2);
+        try { return wp_safe_remote_post($url,$args); }
+        finally { remove_filter('http_request_host_is_external',[self::class,'trusted_host'],10); }
+    }
     public static function valid_url(string $url) {
         add_filter('http_request_host_is_external',[self::class,'trusted_host'],10,2);
         try { return wp_http_validate_url($url); }
